@@ -1,0 +1,31 @@
+/Library/
+/Temp/
+/Obj/
+/Logs/
+/UserSettings/
+/Build/
+/.vs/
+*.csproj
+*.sln
+!Verification/*.csproj
+/Verification/bin/
+/Verification/obj/
+
+# Editor / OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.user
+*.suo
+*.pidb
+*.pdb
+*.mdb
+*.opendb
+
+# Local credentials and settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key

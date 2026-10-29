@@ -1,0 +1,29 @@
+PASS 4 player limit
+PASS only host starts
+PASS start roulette
+PASS late join rejected
+PASS roulette selects roster member
+PASS first turn 7 seconds
+PASS inactive player cannot start turn
+PASS countdown taps ignored
+PASS duplicate tap ignored
+PASS other players cannot add taps
+PASS score locks at deadline
+PASS late tap ignored
+PASS cannot nominate self
+PASS active player nominates opponent
+PASS second turn 8 seconds
+PASS equal score passes
+PASS fewer taps eliminates player
+PASS elimination keeps target and adds second
+PASS eliminated player has no turn authority
+PASS disconnect eliminates participant
+PASS last player wins
+PASS only host rematches
+PASS rematch resets rules and removes disconnected players
+PASS minimum two players
+PASS player names sanitized
+PASS real TCP client-to-host transport
+PASS real TCP host-to-client transport
+PASS TCP disconnect notification
+ALL 28 CHECKS PASSED

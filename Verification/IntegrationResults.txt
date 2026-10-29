@@ -1,0 +1,13 @@
+2026-10-29 / Unity 6000.0.59f2 / Windows x64
+
+Build: succeeded, Mono backend.
+Actual executable launched and Korean UI visually inspected.
+Runtime log: no C# exceptions during observed match.
+Three independent TCP bot clients joined the Unity host on loopback (4 players total).
+Observed phases: Lobby, Roulette, Ready, Countdown, Playing, Result, Nominate, Finished.
+Observed turn durations: 7, 8, 9, 10 seconds.
+Observed score: first player 6 taps, next player 0 taps eliminated, later bot 5 taps below target 6 eliminated.
+Nomination advanced turn to selected participant.
+Final winner screen displayed.
+Rematch button returned host to lobby, reset player score and duration.
+External Internet / NAT traversal was not tested.
