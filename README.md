@@ -2,6 +2,16 @@
 
 **7초부터 시작하는 2~4인 온라인 스페이스바 연타 게임.**
 
+## Windows 실행판 다운로드
+
+### [⬇ OrangeRush-Windows.zip 받기](https://github.com/SJYEOBI/orange-rush/releases/latest/download/OrangeRush-Windows.zip)
+
+Unity 설치 없이 실행할 수 있습니다. ZIP을 **전부 압축 해제**한 뒤 `OrangeRush.exe`를 실행하세요. 실행 파일과 함께 들어 있는 폴더·DLL을 그대로 두어야 합니다.
+
+저장소의 **Code → Download ZIP**은 개발용 소스입니다. 게임만 플레이하려면 위의 **Windows 실행판**을 받으세요. 버전별 파일은 [Releases](https://github.com/SJYEOBI/orange-rush/releases)에서 확인할 수 있습니다.
+
+## 게임 소개
+
 스페이스바를 두드려 기록을 세우고, 마우스로 다음 친구를 지목하세요. 직전 기록보다 적게 치면 탈락합니다. 매 턴 제한 시간이 1초씩 늘어나고, 마지막까지 살아남은 한 명이 우승합니다.
 
 ![오렌지 러시 실제 플레이 화면](docs/gameplay.png)
@@ -86,3 +96,4 @@ Unity.exe -batchmode -nographics -quit -projectPath "PROJECT_PATH" -executeMetho
 기본 출력은 `Build/OrangeRush.exe`입니다. `ORANGE_BUILD_PATH` 환경 변수로 실행 파일 경로를 바꿀 수 있습니다. 배포할 때는 실행 파일과 함께 생성된 폴더·DLL을 모두 포함하세요.
 
 `Library`, `Temp`, `Logs`, `UserSettings`, `Build`와 로컬 인증 파일은 Git 추적에서 제외됩니다.
+
