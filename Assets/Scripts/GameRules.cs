@@ -16,6 +16,8 @@ namespace OrangeRush
     {
         public Player[] players = new Player[0];
         public string phase = "Lobby";
+        public string mode = "Normal";
+        public int wordProgress;
         public int active = -1, host = 0, turn = 1, duration = 7, target, taps, winner = -1;
         public double endsAt, serverTime;
         public string message = "친구들을 초대하고 게임을 시작하세요.";
@@ -24,13 +26,15 @@ namespace OrangeRush
     [Serializable] public class Wire
     {
         public string type, name, error;
-        public int id, target, sequence;
+        public int id, target, sequence, protocol;
         public Snapshot state;
     }
 
     // Pure rules: all mutations run on the host's Unity main thread.
     public class GameRules
     {
+        public const int ProtocolVersion = 2;
+        public static int TurnStep(string mode) { return mode == "Hard" ? 2 : 1; }
         public readonly Snapshot State = new Snapshot();
         readonly Random random;
         int nextId;
@@ -53,6 +57,12 @@ namespace OrangeRush
             Tick(now);
             var player = State.players.FirstOrDefault(p => p.id == sender && p.connected);
             if (player == null) return false;
+            if (command == "mode" && sender == State.host && State.phase == "Lobby" && (target == 0 || target == 1))
+            {
+                State.mode = target == 1 ? "Hard" : "Normal";
+                State.message = State.mode == "Hard" ? "하드 모드: 오렌지를 직접 타이핑하세요!" : "기본 모드: 스페이스바를 연타하세요!";
+                return true;
+            }
             if (command == "start" && sender == State.host && State.phase == "Lobby" && State.players.Length >= 2)
             {
                 State.active = State.players[random.Next(State.players.Length)].id;
@@ -63,11 +73,17 @@ namespace OrangeRush
             if (command == "ready" && sender == State.active && State.phase == "Ready")
             {
                 State.phase = "Countdown"; State.endsAt = now + 3;
-                State.taps = 0; lastSequence = 0; return true;
+                State.taps = 0; State.wordProgress = 0; lastSequence = 0; return true;
             }
-            if (command == "tap" && sender == State.active && State.phase == "Playing" && sequence > lastSequence)
+            if (command == "tap" && State.mode == "Normal" && sender == State.active && State.phase == "Playing" && sequence > lastSequence)
             {
                 lastSequence = sequence; State.taps++; return true;
+            }
+            if (command == "typeKey" && State.mode == "Hard" && sender == State.active && State.phase == "Playing" && sequence > lastSequence && WordTyping.IsValidKey(target))
+            {
+                lastSequence = sequence;
+                if (WordTyping.Advance(ref State.wordProgress, target) == WordKeyResult.Completed) State.taps++;
+                return true;
             }
             if (command == "nominate" && sender == State.active && State.phase == "Nominate" &&
                 State.players.Any(p => p.id == target && p.id != sender && p.alive && p.connected))
@@ -79,15 +95,15 @@ namespace OrangeRush
                 State.players = State.players.Where(p => p.connected).ToArray();
                 foreach (var p in State.players) { p.alive = true; p.best = 0; }
                 State.phase = "Lobby"; State.turn = 1; State.duration = 7; State.target = 0;
-                State.taps = 0; State.active = -1; State.winner = -1;
+                State.taps = 0; State.wordProgress = 0; State.active = -1; State.winner = -1;
                 State.message = "다시 모였네요. 새로운 승부를 시작하세요!"; return true;
             }
             return false;
         }
         void Next(int id)
         {
-            State.active = id; State.turn++; State.duration++;
-            State.taps = 0; State.phase = "Ready";
+            State.active = id; State.turn++; State.duration += TurnStep(State.mode);
+            State.taps = 0; State.wordProgress = 0; State.phase = "Ready";
             State.message = "키보드 준비! 준비 완료를 누르면 3초 뒤 시작합니다.";
         }
         public bool Tick(double now)
@@ -133,6 +149,29 @@ namespace OrangeRush
             var alive = State.players.Where(x => x.alive && x.connected).ToArray();
             if (alive.Length <= 1) Finish(alive);
             else if (State.active == id) Next(alive[random.Next(alive.Length)].id);
+        }
+    }
+
+    public enum WordKeyResult { Progress, Completed, Mistake, Edited }
+
+    // A two-set Korean keyboard spells 오렌지 as D H F P S W L.
+    // No text payload is accepted: each letter is validated on the host.
+    public static class WordTyping
+    {
+        public const int Backspace = 26;
+        static readonly int[] Keys = { 3, 7, 5, 15, 18, 22, 11 };
+        static readonly string[] Stages = { "", "ㅇ", "오", "올", "오레", "오렌", "오렌ㅈ" };
+        public static bool IsValidKey(int key) { return key >= 0 && key <= Backspace; }
+        public static string Preview(int progress) { return Stages[Math.Max(0, Math.Min(6, progress))]; }
+        public static WordKeyResult Advance(ref int progress, int key)
+        {
+            if (!IsValidKey(key)) return WordKeyResult.Mistake;
+            if (key == Backspace) { progress = Math.Max(0, progress - 1); return WordKeyResult.Edited; }
+            if (key != Keys[progress])
+            { progress = key == Keys[0] ? 1 : 0; return WordKeyResult.Mistake; }
+            progress++;
+            if (progress < Keys.Length) return WordKeyResult.Progress;
+            progress = 0; return WordKeyResult.Completed;
         }
     }
 }

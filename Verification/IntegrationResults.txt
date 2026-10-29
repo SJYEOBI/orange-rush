@@ -11,3 +11,17 @@ Nomination advanced turn to selected participant.
 Final winner screen displayed.
 Rematch button returned host to lobby, reset player score and duration.
 External Internet / NAT traversal was not tested.
+
+v0.2.0 / 2026-10-29
+- Windows build with lobby Normal/Hard selection succeeded.
+- All 55 rules and TCP transport checks passed.
+- Four-player Hard match: all three TCP clients received Hard mode, used per-key messages,
+  completed words, nominated the next player, eliminated players and observed the final winner.
+- Final Hard timing is 7, 9, 11, 13 seconds (+2 per turn); Normal stays +1.
+- Final executable displayed 9 seconds for turn two and 11 seconds for the next turn.
+- Rematch returned to the lobby and retained the selected Hard difficulty.
+- Native keyboard UI check during a live host turn:
+  paste of three copies of 오렌지, Shift+Insert and Space left score at 0;
+  physical D H F P S W L sequence then increased score to exactly 1.
+- No editable word field exists; OS clipboard and IME text are not used for scoring.
+- This prevents clipboard scoring, not arbitrary input macros or modified clients.

@@ -18,6 +18,7 @@ public static class BuildGame
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene("Assets/Scenes/OrangeRush.unity",true)};
         PlayerSettings.companyName="Orange Club";
         PlayerSettings.productName="Orange Rush";
+        PlayerSettings.bundleVersion="0.2.0";
         PlayerSettings.defaultScreenWidth=1440; PlayerSettings.defaultScreenHeight=900;
         PlayerSettings.fullScreenMode=FullScreenMode.Windowed;
         PlayerSettings.resizableWindow=true; PlayerSettings.runInBackground=true;

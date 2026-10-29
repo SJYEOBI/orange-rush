@@ -23,7 +23,34 @@ PASS only host rematches
 PASS rematch resets rules and removes disconnected players
 PASS minimum two players
 PASS player names sanitized
+PASS only host changes difficulty
+PASS invalid difficulty rejected
+PASS host selects hard mode in lobby
+PASS hard mode also starts at seven seconds
+PASS difficulty locked during match
+PASS hard typing before countdown ignored
+PASS space taps cannot score in hard mode
+PASS completed word payload cannot score in hard mode
+PASS inactive player cannot type for opponent
+PASS invalid key packet rejected
+PASS partial word does not score
+PASS backspace edits progress without score
+PASS wrong letter resets word without score
+PASS exact seven keys score one orange automatically
+PASS replayed typing packet rejected
+PASS consecutive words score independently
+PASS unfinished word cannot score at or after deadline
+PASS hard second turn adds two seconds and preserves target
+PASS equal word count passes in hard mode
+PASS hard third turn is eleven seconds
+PASS fewer words eliminates and awards last survivor
+PASS rematch preserves selected difficulty and resets score
+PASS host can switch back to normal in lobby
+PASS typing commands cannot score in normal mode
+PASS hard elimination also adds exactly two seconds
+PASS hard fourth turn is thirteen seconds
+PASS difficulty progress and protocol survive wire serialization
 PASS real TCP client-to-host transport
 PASS real TCP host-to-client transport
 PASS TCP disconnect notification
-ALL 28 CHECKS PASSED
+ALL 55 CHECKS PASSED
