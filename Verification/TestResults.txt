@@ -76,23 +76,64 @@ PASS three free selection seconds
 PASS no deduction exactly at three seconds
 PASS deduction waits for complete overtime second
 PASS four second selection deducts one tenth
-PASS five second selection previews seven point eight seconds
+PASS late chooser does not reduce next opponent base time
 PASS opponent cannot spend another player's selection timer
 PASS invalid nomination keeps timer running
 PASS invalid commands do not restart grace period
 PASS late selection remains possible
-PASS host commits selection penalty to next turn only
-PASS fractional duration sets precise scoring deadline
-PASS input just before fractional deadline accepted
-PASS input at fractional deadline rejected
-PASS penalty does not accumulate into later turns
-PASS hard base increment and selection penalty combine
-PASS overtime cannot reduce challenge below one second
-PASS host enforces minimum duration on late selection
+PASS penalty belongs to chooser while nominated opponent receives full time
+PASS chooser pays saved penalty when personally nominated again
+PASS personal penalty is consumed exactly once
+PASS personal fractional duration sets precise scoring deadline
+PASS input just before personal fractional deadline accepted
+PASS input at personal fractional deadline rejected
+PASS other players never inherit the chooser penalty
+PASS hard opponent receives full nine seconds after late nomination
+PASS hard chooser pays penalty on own eleven-second turn
+PASS long delay cannot punish nominated opponent
+PASS personal penalty respects one-second minimum and is fully consumed
 PASS disconnect auto-selection carries no manual selection penalty
 PASS clock sample before selection cannot produce negative penalty
 PASS fractional times and nomination timestamp survive network serialization
+PASS chat is unavailable in lobby
+PASS chat does not reveal starting player during roulette
+PASS waiting player can send Korean spectator message
+PASS one bubble has a server-owned expiry
+PASS immediate repeated send replaces previous bubble without cooldown
+PASS active player cannot score while editing chat
+PASS unknown sender cannot send chat
+PASS blank chat is rejected without erasing existing bubble
+PASS chat is a single line without control characters
+PASS server bounds Korean messages to twenty-four characters
+PASS text truncation preserves full surrogate pairs
+PASS chat text cannot become scoring input
+PASS one hundred immediate sends leave exactly the latest bubble
+PASS new message refreshes bubble lifetime
+PASS expired bubble clears on host
+PASS eliminated connected spectator can still chat
+PASS chat text and expiry survive snapshot transport
+PASS disconnected spectator cannot chat and loses bubble
+PASS finished match disallows new spectator messages
+PASS rematch clears every spectator bubble
+PASS hard first letter grows orange before any completed word
+PASS backspace does not inflate or shrink orange growth
+PASS typing mistake can animate orange without awarding score
+PASS replayed input cannot inflate orange size
+PASS orange growth resets for next player
+PASS every accepted space tap also grows the orange
+PASS spectator can trigger oh voice button
+PASS server assigns voice identity serial and exact clip duration
+PASS another player cannot overlap a playing syllable
+PASS voice stays locked until pronunciation ends
+PASS next syllable starts exactly when previous clip ends
+PASS accepted syllables remain ordered
+PASS active challenger cannot trigger spectator voice buttons
+PASS invalid voice index rejected without consuming cooldown
+PASS unknown voice sender rejected
+PASS ji voice button works without affecting score
+PASS voice cooldown and event serial survive transport
+PASS rematch clears voice lock but preserves room event serial
 PASS real TCP client-to-host transport
 PASS real TCP host-to-client transport
 PASS TCP disconnect notification
-ALL 97 CHECKS PASSED
+ALL 138 CHECKS PASSED

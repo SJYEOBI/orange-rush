@@ -39,3 +39,25 @@ v0.3.0 / 2026-10-29 / Unity 6000.0.59f2 / Windows x64
 - Screenshots: docs/v030-normal.jpg and docs/v030-hard.jpg.
 - No new vocal audio was added in this release.
 - External networks and twenty physical PCs were not tested; transport tests used separate clients on this computer.
+
+
+v0.3.1 / 2026-10-29 / spectator distraction chat
+- All 117 rules and transport checks passed.
+- Tests include 100 same-time messages accepted without cooldown, latest-only replacement, 24-character Korean limit, Unicode boundary, 8-second expiry refresh, eliminated spectators, active-player rejection, cleanup and score isolation in Hard mode.
+- Actual Unity host with 19 independent TCP clients (20 total) ran Hard mode while spectators each sent two consecutive messages every 0.45 seconds. Every spectator observed its latest bubble in host snapshots.
+- Test clients deliberately supplied the active player id in chat packets; the host correctly attributed messages to the real socket owner.
+- Full 20-card board inspected: bubbles remain inside their own cards without covering names, game score or typing guides.
+- Native UI accepted Korean spectator text and automatically removed the input field when this player was nominated.
+- Eliminated host sent Korean text using both the Send button and Enter; the input cleared and the host card displayed the text bubble.
+- No C# exceptions were found in the observed game runtime log.
+- External networks were not tested.
+
+
+Final v0.3.1 / personal nomination penalty, growth and voice buttons
+- Final fast rule/transport suite: 138 checks passed.
+- Nomination delay is now saved on the chooser and applied once on that player's next challenge. Opponents receive their own normal time. Minimum 1s and debt reset verified.
+- Input count now grows on every accepted Space tap and on each Hard letter, before word completion; edits do not inflate it.
+- Three embedded Korean synthesized clips: oh 5132/22050s, ren 7359/22050s, ji 6422/22050s. Global server lock lasts exactly one clip; clients queue reliable ordered events and never start over a playing clip.
+- Actual Normal-mode Unity host with 19 TCP clients delivered 52 ordered voice events and simultaneous latest-only chat bubbles. Large alternating left/right bubbles and three audio buttons visually inspected.
+- A native user continued the running Normal match and registered 67 Space taps. The final build was produced in a separate directory without closing that user's game.
+- Following the user's request to minimize testing, the final personal-penalty change received one fast rule check pass and a build, with no additional UI match run.
