@@ -113,7 +113,7 @@ Check(hardFour.State.duration==13 && hardFour.State.turn==4,"hard fourth turn is
 var wireOptions=new System.Text.Json.JsonSerializerOptions { IncludeFields=true };
 var serialized=System.Text.Json.JsonSerializer.Serialize(new Wire {type="state",protocol=GameRules.ProtocolVersion,state=new Snapshot {mode="Hard",wordProgress=5}},wireOptions);
 var roundTrip=System.Text.Json.JsonSerializer.Deserialize<Wire>(serialized,wireOptions);
-Check(roundTrip.protocol==7 && roundTrip.state.mode=="Hard" && roundTrip.state.wordProgress==5,"difficulty progress and protocol survive wire serialization");
+Check(roundTrip.protocol==8 && roundTrip.state.mode=="Hard" && roundTrip.state.wordProgress==5,"difficulty progress and protocol survive wire serialization");
 
 GameRules Nomination(string mode="Normal")
 {
@@ -171,43 +171,65 @@ Check(fractionalWire.state.duration==7.8 && fractionalWire.state.timePenalty==0.
 
 var chatGame=new GameRules(9);for(int i=0;i<4;i++)chatGame.Add("CHAT "+i);
 Check(!chatGame.Chat(0,"로비 메시지",0),"chat is unavailable in lobby");
-chatGame.Command(0,"mode",1,0,0);
-chatGame.Command(0,"start",-1,0,0);
+chatGame.Command(0,"mode",1,0,0);chatGame.Command(0,"start",-1,0,0);
 Check(!chatGame.Chat(1,"룰렛 메시지",1),"chat does not reveal starting player during roulette");
 chatGame.Tick(5);int talker=chatGame.State.players.First(p=>p.id!=chatGame.State.active && p.id!=chatGame.State.host).id;
 var talkingPlayer=chatGame.State.players.First(p=>p.id==talker);
+int anotherTalker=chatGame.State.players.First(p=>p.id!=talker && p.id!=chatGame.State.active).id;
 Check(chatGame.Chat(talker,"빨리 쳐봐!",5),"waiting player can send Korean spectator message");
-Check(talkingPlayer.chat=="빨리 쳐봐!" && talkingPlayer.chatUntil==13,"one bubble has a server-owned expiry");
-Check(chatGame.Chat(talker,"방해 성공?",5) && talkingPlayer.chat=="방해 성공?","immediate repeated send replaces previous bubble without cooldown");
-Check(!chatGame.Chat(chatGame.State.active,"내 차례 메시지",5),"active player cannot score while editing chat");
+Check(talkingPlayer.chat=="빨리 쳐봐!" && talkingPlayer.chatUntil==13 && talkingPlayer.chatReadyAt==6.5,"bubble expiry and personal one-point-five-second cooldown are server-owned");
+Check(!chatGame.Chat(talker,"연속 전송",5) && talkingPlayer.chat=="빨리 쳐봐!","early repeated chat cannot replace existing message");
+Check(chatGame.Chat(anotherTalker,"동시에 응원!",5),"other players can chat during this sender's cooldown");
+Check(!chatGame.Chat(chatGame.State.active,"내 차례 메시지",5),"active player cannot use spectator chat");
 Check(!chatGame.Chat(999,"사칭",5),"unknown sender cannot send chat");
-Check(!chatGame.Chat(talker," \r\n\t ",5) && talkingPlayer.chat=="방해 성공?","blank chat is rejected without erasing existing bubble");
+Check(!chatGame.Chat(talker," \r\n\t ",5.1) && talkingPlayer.chat=="빨리 쳐봐!","blank chat cannot erase the existing bubble");
 Check(GameRules.CleanChat("  하나\n둘\t셋\0  ")=="하나 둘 셋","chat is a single line without control characters");
 Check(GameRules.CleanChat(new string('가',40)).Length==24,"server bounds Korean messages to twenty-four characters");
 Check(GameRules.ShortChat("가😀나",2)=="가😀","text truncation preserves full surrogate pairs");
+Check(!chatGame.Chat(talker,"아직 대기",6.499),"chat just before cooldown boundary is rejected");
+Check(chatGame.Chat(talker,"방해 성공?",6.5) && talkingPlayer.chat=="방해 성공?","new message replaces profile bubble exactly at cooldown boundary");
 int scoreBefore=chatGame.State.taps, progressBefore=chatGame.State.wordProgress;
-chatGame.Chat(talker,"오렌지 오렌지 오렌지 dhfpswl",6);
+chatGame.Chat(talker,"오렌지 오렌지 dhfpswl",8);
 Check(chatGame.State.taps==scoreBefore && chatGame.State.wordProgress==progressBefore,"chat text cannot become scoring input");
-bool allChatAccepted=true;
-for(int i=0;i<100;i++) allChatAccepted &= chatGame.Chat(talker,"연속 방해 "+i,6);
-Check(allChatAccepted && talkingPlayer.chat=="연속 방해 99","one hundred immediate sends leave exactly the latest bubble");
-chatGame.Tick(13.999);
-Check(talkingPlayer.chat.Length>0,"new message refreshes bubble lifetime");
-chatGame.Tick(14);
-Check(talkingPlayer.chat=="" && talkingPlayer.chatUntil==0,"expired bubble clears on host");
+int chatSerial=chatGame.State.chatSequence;
+bool allSpamRejected=true;for(int i=0;i<100;i++)allSpamRejected &= !chatGame.Chat(talker,"빠른 방해 "+i,8.1);
+Check(allSpamRejected && chatGame.State.chatSequence==chatSerial && talkingPlayer.chat=="오렌지 오렌지 dhfpswl","spam cannot bypass cooldown or allocate chat events");
+chatGame.Tick(15.999);Check(talkingPlayer.chat.Length>0,"new message refreshes bubble lifetime");
+chatGame.Tick(16);Check(talkingPlayer.chat=="" && talkingPlayer.chatUntil==0,"expired bubble clears on host");
 talkingPlayer.alive=false;
-Check(chatGame.Chat(talker,"탈락해도 방해!",14),"eliminated connected spectator can still chat");
+Check(chatGame.Chat(talker,"탈락해도 방해!",16),"eliminated connected spectator can still chat");
 var chatWire=new Wire {type="state",state=chatGame.State};
 var chatRoundTrip=System.Text.Json.JsonSerializer.Deserialize<Wire>(System.Text.Json.JsonSerializer.Serialize(chatWire,wireOptions),wireOptions);
-Check(chatRoundTrip.state.players.First(p=>p.id==talker).chat=="탈락해도 방해!" && chatRoundTrip.state.players.First(p=>p.id==talker).chatUntil==22,"chat text and expiry survive snapshot transport");
+Check(chatRoundTrip.state.players.First(p=>p.id==talker).chat=="탈락해도 방해!" && chatRoundTrip.state.players.First(p=>p.id==talker).chatReadyAt==17.5,"chat cooldown and message survive snapshot transport");
 chatGame.Disconnect(talker);
-Check(!chatGame.Chat(talker,"연결 끊김",15) && talkingPlayer.chat=="","disconnected spectator cannot chat and loses bubble");
-int otherTalker=chatGame.State.players.First(p=>p.id!=chatGame.State.active && p.connected).id;
-chatGame.Chat(otherTalker,"또 방해!",15);
-chatGame.State.phase="Finished";
-Check(!chatGame.Chat(otherTalker,"끝난 뒤",15),"finished match disallows new spectator messages");
-chatGame.Command(0,"rematch",-1,0,16);
-Check(chatGame.State.players.All(p=>p.chat=="" && p.chatUntil==0),"rematch clears every spectator bubble");
+Check(!chatGame.Chat(talker,"연결 끊김",16.1) && talkingPlayer.chat=="","disconnected spectator cannot chat and loses bubble");
+chatGame.Chat(anotherTalker,"또 방해!",17.5);chatGame.State.phase="Finished";
+Check(!chatGame.Chat(anotherTalker,"끝난 뒤",17.5),"finished match disallows new spectator messages");
+chatGame.Command(0,"rematch",-1,0,18);
+Check(chatGame.State.players.All(p=>p.chat=="" && p.chatUntil==0 && p.chatReadyAt==0),"rematch clears spectator bubbles and cooldowns");
+
+var motionState=new Snapshot {phase="Ready",chatSequence=3,players=Enumerable.Range(0,3).Select(i=>new Player{id=i,name="M"+i,chat="메시지 "+i,chatSequence=i+1,chatUntil=13}).ToArray()};
+var motion=new ScrollingChats();motion.Update(motionState,5);
+Check(motion.Active.Count==0 && motion.WaitingCount==3,"messages wait for live play before flying");
+motionState.phase="Playing";motion.Update(motionState,5);
+Check(motion.Active.Count==3 && motion.WaitingCount==0 && motion.Active.Select(m=>m.lane).Distinct().Count()==3,"three flight lanes initially receive separate messages");
+Check(motion.Active.All(m=>m.Y>=476 && m.Y+28<=612),"randomized middle lanes remain below HUD and above typing guide");
+motion.Update(motionState,5.1);
+Check(motion.Active.Count==3 && motion.WaitingCount==0,"repeated snapshots never duplicate flying messages");
+motion.Update(motionState,10.5);
+Check(motion.Active.Count==0 && motion.WaitingCount==0,"messages leave the screen after traversing the full play area");
+motionState.phase="Finished";motion.Update(motionState,10.6);
+Check(motion.Active.Count==0 && motion.WaitingCount==0,"end of match clears all flying messages");
+var crowdedMotion=new Snapshot{phase="Ready",chatSequence=20,players=Enumerable.Range(0,20).Select(i=>new Player{id=i,name="C"+i,chat="대기",chatSequence=i+1,chatUntil=30}).ToArray()};
+motion.Update(crowdedMotion,11);
+for(int round=0;round<5;round++) {foreach(var p in crowdedMotion.players)p.chatSequence=++crowdedMotion.chatSequence;motion.Update(crowdedMotion,11+round);}
+Check(motion.WaitingCount==20,"waiting list stores only each player's latest chat even under bursts");
+crowdedMotion.phase="Playing";motion.Update(crowdedMotion,16);
+motion.Update(crowdedMotion,18);
+Check(motion.Active.Count==6 && motion.WaitingCount==14,"up to six chats can fly simultaneously while backlog stays bounded");
+Check(motion.Active.GroupBy(m=>m.lane).All(lane=>{var ordered=lane.OrderBy(m=>m.startsAt).ToArray();return ordered.Length<2 || ordered[0].X(18)-(ordered[1].X(18)+ordered[1].width)>=ScrollingChats.Gap;}),"same-lane chat keeps a gap and never catches the message ahead");
+crowdedMotion.phase="Playing";motion.Update(crowdedMotion,31);
+Check(motion.Active.Count==0 && motion.WaitingCount==0,"expired queued chat cannot appear late in gameplay");
 
 var growth=new GameRules(2);growth.Add("Host");growth.Add("Guest");growth.Command(0,"mode",1,0,0);
 growth.Command(0,"start",-1,0,0);growth.Tick(5);int grower=growth.State.active;
@@ -255,7 +277,7 @@ int newest=crowdVoice.State.players.First(p=>p.id!=crowdVoice.State.active).id;
 int secondNewest=crowdVoice.State.players.Last(p=>p.id!=crowdVoice.State.active).id;
 crowdVoice.Chat(newest,"첫 번째 말",5);crowdVoice.Chat(secondNewest,"나중에 온 말",5);
 Check(crowdVoice.State.players.OrderByDescending(p=>p.chatSequence).First().id==secondNewest,"central chat selects the latest message even at identical timestamps");
-crowdVoice.Chat(newest,"새 말로 덮어쓰기",5);
+crowdVoice.Chat(newest,"새 말로 덮어쓰기",6.5);
 Check(crowdVoice.State.players.OrderByDescending(p=>p.chatSequence).First().id==newest && crowdVoice.State.players.First(p=>p.id==newest).chat=="새 말로 덮어쓰기","replacement message takes central spotlight without creating chat history");
 using(var server=new NetworkRoom())
 using(var client=new NetworkRoom())

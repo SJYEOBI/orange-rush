@@ -48,11 +48,10 @@ static class Bots
             }
             if(chatDemo && !chatVerified && lastMessage.Length>0 && s.players.Any(p=>p.id==id && p.chat==lastMessage && p.chatUntil>s.serverTime))
             {chatVerified=true;Console.WriteLine($"CLIENT {index:00} received own latest bubble in host snapshot; taps={s.taps}");}
-            if(chatDemo && GameRules.CanChat(s,id) && s.serverTime-lastChat>=0.45)
+            if(chatDemo && GameRules.CanChat(s,id) && s.serverTime-lastChat>=1.6 && s.serverTime>=s.players.First(p=>p.id==id).chatReadyAt)
             {
                 lastMessage=index==1?"오렌지 생각하면 손이 꼬인다! "+(++chatNumber):"방해 "+index+" · "+(++chatNumber)+" ㅋㅋㅋ";
                 // Deliberately spoof an id: the real host must attribute chat to this socket.
-                await writer.WriteLineAsync(JsonSerializer.Serialize(new Wire{type="chat",id=s.active,message="이전 말풍선"},options));
                 await writer.WriteLineAsync(JsonSerializer.Serialize(new Wire{type="chat",id=s.active,message=lastMessage},options));
                 lastChat=s.serverTime;
             }

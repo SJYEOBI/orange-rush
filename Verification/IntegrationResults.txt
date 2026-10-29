@@ -70,3 +70,12 @@ v0.4.0 / 2026-10-29
 - Client playback uses immediate AudioSource.PlayOneShot without a global playback queue or isPlaying gate. Real voice capacity increased from 32 to 64 for concurrent short syllables.
 - Prior 20-client integration evidence above belongs to v0.3.x; no long 20-player match was repeated for this update.
 - Short v0.4.0 preview admitted 3 TCP clients (4 total). A Windows network-permission dialog blocked visual inspection, so no further UI match was run.
+
+
+v0.4.1 / 2026-10-30 (Asia/Seoul)
+- Final fast rules and TCP suite passed: 156 checks.
+- Personal 1.5s chat cooldown, exact boundary, independent senders, spam rejection, serialization and rematch reset covered.
+- Up to six scrolling messages across three lanes; constant speed and width-based spacing prevent overlap. One pending message per sender, expiry and match cleanup covered.
+- Message only (no sender name), font size 22. Lane Y ranges 476..484, 526..534, 576..584 with 28px text stay below HUD/status (ends 469) and above typing input (starts 665).
+- Brief earlier preview admitted 3 TCP clients. No further UI match was run after the user took control of the game. Final build uses a separate directory.
+- Final Windows x64 build succeeded in a separate v0.4.1 directory.

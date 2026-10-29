@@ -23,9 +23,9 @@ namespace OrangeRush
         float lastPulse = -10;
         float orangeSize = 160;
         int visualTurn = -1, visualInputs, lastVoiceSequence;
-        int spotlightSequence = -1;
-        float spotlightPulse = -10;
+        readonly ScrollingChats scrollingChats = new ScrollingChats();
         double localVoiceReadyAt;
+        double localChatReadyAt;
         readonly AudioClip[] syllables = new AudioClip[3];
         bool connecting, mute;
         Font font;
@@ -93,6 +93,7 @@ namespace OrangeRush
                 else if(state!=null && Now>=nextHeartbeat) { nextHeartbeat=Now+1; Command("ping"); }
             }
             if (state == null) { Input.imeCompositionMode = IMECompositionMode.Auto; return; }
+            scrollingChats.Update(state,ServerNow);
             voiceSource.mute=mute;
             if(visualTurn!=state.turn) { visualTurn=state.turn; visualInputs=0; orangeSize=160; }
             if(state.inputCount>visualInputs) lastPulse=Time.unscaledTime;
@@ -172,7 +173,7 @@ namespace OrangeRush
                     myId=w.id; connecting=false;
                 }
                 if(w.type=="error") { error=w.error; Leave(false); }
-                if(w.type=="chatRejected") chatNotice="관전 중에만 한마디를 보낼 수 있어요.";
+                if(w.type=="chatRejected") chatNotice="관전 채팅은 1.5초마다 보낼 수 있어요.";
                 if(w.type=="voice") PlayVoice(w);
                 if(w.type=="state" && w.state!=null) { state=w.state; clockOffset=state.serverTime-Now; connecting=false; }
             }
@@ -197,9 +198,11 @@ namespace OrangeRush
         void SendChat()
         {
             string value=GameRules.CleanChat(chatDraft);
-            if(!GameRules.CanChat(state,myId) || value.Length==0) return;
+            var me=state?.players.FirstOrDefault(p=>p.id==myId);
+            if(!GameRules.CanChat(state,myId) || value.Length==0 || ServerNow<Math.Max(localChatReadyAt,me?.chatReadyAt??0)) return;
             if(Hosting) { if(!rules.Chat(myId,value,Now)) return; }
             else network?.Send(JsonUtility.ToJson(new Wire {type="chat",message=value}));
+            localChatReadyAt=ServerNow+GameRules.ChatCooldown;
             chatDraft=""; chatNotice="";
         }
         void Connect(bool host)
@@ -214,7 +217,7 @@ namespace OrangeRush
             catch(Exception e) { error="방을 열지 못했습니다: "+e.Message; Leave(false); }
         }
         void Leave(bool clearError=true)
-        { network?.Dispose(); network=null; state=null; rules=null; myId=-1; connecting=false; clockOffset=0; chatDraft=""; chatNotice=""; chatFocused=false; voiceSource?.Stop(); lastVoiceSequence=0; localVoiceReadyAt=0; spotlightSequence=-1; visualTurn=-1; if(clearError) error=""; }
+        { network?.Dispose(); network=null; state=null; rules=null; myId=-1; connecting=false; clockOffset=0; chatDraft=""; chatNotice=""; chatFocused=false; voiceSource?.Stop(); lastVoiceSequence=0; localVoiceReadyAt=0; localChatReadyAt=0; scrollingChats.Clear(); visualTurn=-1; if(clearError) error=""; }
         void OnDestroy() { network?.Dispose(); Input.imeCompositionMode=IMECompositionMode.Auto; }
         double Remaining() { return Math.Max(0,state.endsAt-(Now+(Hosting?0:clockOffset))); }
         void OnGUI()
@@ -294,9 +297,11 @@ namespace OrangeRush
             chatDraft=GameRules.ShortChat(chatDraft,GameRules.ChatLength);
             chatFocused=GUI.GetNameOfFocusedControl()=="SpectatorChat";
             if(chatDraft.Length==0 && !chatFocused)
-                Label(new Rect(205,810,734,35),chatNotice.Length>0?chatNotice:"24자 한마디 · Enter로 전송 · 새 말풍선으로 덮어쓰기!",13,Muted);
-            GUI.enabled=GameRules.CleanChat(chatDraft).Length>0 && !composing;
-            if(Button(new Rect(963,810,126,35),"보내기  ↵",Orange,Bg,15)) { SendChat(); GUI.FocusControl("SpectatorChat"); }
+                Label(new Rect(205,810,734,35),chatNotice.Length>0?chatNotice:"24자 한마디 · Enter 전송 · 개인별 1.5초 간격",13,Muted);
+            var me=state.players.FirstOrDefault(p=>p.id==myId);
+            double cooldown=Math.Max(0,Math.Max(localChatReadyAt,me?.chatReadyAt??0)-ServerNow);
+            GUI.enabled=GameRules.CleanChat(chatDraft).Length>0 && !composing && cooldown<=0;
+            if(Button(new Rect(963,810,126,35),cooldown>0?Seconds(cooldown)+"초":"보내기  ↵",Orange,Bg,15)) { SendChat(); GUI.FocusControl("SpectatorChat"); }
             GUI.enabled=true;
             VoiceButtons(true);
         }
@@ -362,9 +367,10 @@ namespace OrangeRush
             Label(new Rect(82,193,570,36),PlayerName(state.active)+(Mine?"  ·  MY TURN":"  ·  도전 중"),23,Cream,true);
             Label(new Rect(730,193,230,36),"이번 턴  "+Seconds(state.duration)+"초",20,Orange,true,TextAnchor.MiddleRight);
             Box(new Rect(82,247,880,88),Hex("111925"));
-            Label(new Rect(100,248,330,24),"목표  "+state.target+" "+ScoreLabel,17,Green,true);
-            Label(new Rect(465,248,480,24),"다음 기본 "+Seconds(NextDuration)+"초"+(state.timePenalty>0?" · 본인 지목 감점 −"+Seconds(state.timePenalty)+"초":" · 지목 지연은 본인 다음 차례 감점"),12,state.timePenalty>0?Hex("FFA7A7"):Muted,false,TextAnchor.MiddleRight);
-            ChatSpotlight(new Rect(96,277,852,49));
+            Label(new Rect(108,260,400,26),"넘어야 할 기록",14,Muted);
+            Label(new Rect(108,283,400,37),state.target+" "+ScoreLabel,28,Green,true);
+            Label(new Rect(580,257,355,36),"다음 턴 기본 "+Seconds(NextDuration)+"초",18,Muted,false,TextAnchor.MiddleRight);
+            Label(new Rect(525,296,410,26),state.timePenalty>0?"본인 지목 지연 −"+Seconds(state.timePenalty)+"초 적용":"지목 지연은 본인의 다음 차례에 적용",12,state.timePenalty>0?Hex("FFA7A7"):Muted,false,TextAnchor.MiddleRight);
             if(phase=="Ready")
             {
                 DrawOrange(new Rect(433,368,180,180),-8);
@@ -382,7 +388,7 @@ namespace OrangeRush
             if(phase=="Playing")
             {
                 float remaining=(float)Remaining();
-                Label(new Rect(450,347,490,60),remaining.ToString("0.0")+"s",38,remaining<3?Hex("FFAD99"):Orange,true,TextAnchor.MiddleCenter);
+                Label(new Rect(450,347,220,60),remaining.ToString("0.0")+"s",38,remaining<3?Hex("FFAD99"):Orange,true,TextAnchor.MiddleCenter);
                 Box(new Rect(480,421,430,8),Hex("30394A"));
                 Box(new Rect(480,421,430*Mathf.Clamp01(remaining/(float)state.duration),8),Orange);
                 float pulse=Mathf.Clamp01(1-(Time.unscaledTime-lastPulse)*9);
@@ -391,8 +397,9 @@ namespace OrangeRush
                 float size=orangeSize+pulse*12;
                 DrawOrange(new Rect((335-size)/2,(310-size)/2,size,size),pulse*5);
                 GUI.EndGroup();
-                Label(new Rect(450,441,490,150),state.taps.ToString(),112,Cream,true,TextAnchor.MiddleCenter);
-                Label(new Rect(450,609,490,35),ScoreLabel+"  /  "+(state.taps>=state.target?"기록 통과!":"앞으로 "+(state.target-state.taps)+ScoreUnit),18,Green,true,TextAnchor.MiddleCenter);
+                DrawScrollingChats();
+                Label(new Rect(690,341,250,76),state.taps.ToString(),64,Cream,true,TextAnchor.MiddleCenter);
+                Label(new Rect(450,444,490,25),ScoreLabel+"  /  "+(state.taps>=state.target?"기록 통과!":"앞으로 "+(state.target-state.taps)+ScoreUnit),16,Green,true,TextAnchor.MiddleCenter);
                 if(Hard) { TypingUI(); return; }
                 Box(new Rect(300,694,445,60),Mine?(pulse>0?Orange:Hex("344157")):Hex("253041"));
                 Label(new Rect(300,694,445,60),Mine?"S P A C E   연타!":"친구를 응원해주세요!",22,Mine?Cream:Muted,true,TextAnchor.MiddleCenter); return;
@@ -416,31 +423,27 @@ namespace OrangeRush
                 Label(new Rect(100,718,850,48),"3초 안에 선택 · 초과 1초마다 본인 다음 차례 −0.1초\n최소 1초 보장 · 본인이 다시 도전할 때 한 번 적용",15,Muted,false,TextAnchor.MiddleCenter);
             }
         }
-        void ChatSpotlight(Rect r)
+        void DrawScrollingChats()
         {
-            // The latest replacement per player stays in the roster. Only the newest
-            // live message gets the large banner beside the player's timer and score.
-            var speaker=state.players.Where(p=>p.connected && p.chatUntil>ServerNow && p.chat.Length>0)
-                .OrderByDescending(p=>p.chatSequence).FirstOrDefault();
-            if(speaker==null)
+            // Three middle lanes sit below the score/timer and above the typing guide.
+            GUI.BeginGroup(new Rect(82,472,880,156));
+            var style=new GUIStyle(text) {fontSize=22,fontStyle=FontStyle.Normal,wordWrap=false,alignment=TextAnchor.MiddleLeft};
+            foreach(var m in scrollingChats.Active)
             {
-                Box(r,Hex("202B3A"));
-                Label(new Rect(r.x+14,r.y,r.width-28,r.height),"방해 한마디  /  관전 채팅이 이곳에 크게 떠요!",16,Muted,false,TextAnchor.MiddleCenter);
-                return;
+                float progress=Mathf.Clamp01((float)((ServerNow-m.startsAt)/m.Duration));
+                string line=m.text;
+                float width=(float)m.width;
+                float x=(float)m.X(ServerNow);
+                float fade=Mathf.Min(1,progress*10,(1-progress)*10);
+                int index=Array.FindIndex(state.players,p=>p.id==m.sender);
+                Color ink=Color.Lerp(Cream,colors[Math.Max(0,index)%colors.Length],0.3f);
+                ink.a=0.76f*fade;
+                var r=new Rect(x,(float)m.Y-472,width,28);
+                style.normal.textColor=new Color(0.04f,0.06f,0.09f,0.45f*fade);
+                GUI.Label(new Rect(r.x+1,r.y+1,r.width,r.height),line,style);
+                style.normal.textColor=ink;GUI.Label(r,line,style);
             }
-            if(spotlightSequence!=speaker.chatSequence)
-            { spotlightSequence=speaker.chatSequence; spotlightPulse=Time.unscaledTime; }
-            float pop=Mathf.Clamp01(1-(Time.unscaledTime-spotlightPulse)*5);
-            int index=Array.FindIndex(state.players,p=>p.id==speaker.id);
-            Color accent=colors[Math.Max(0,index)%colors.Length];
-            Box(r,Color.Lerp(Hex("293447"),accent,0.2f+pop*0.15f));
-            Box(new Rect(r.x,r.y,4,r.height),accent);
-            Label(new Rect(r.x+14,r.y+3,100,18),"방해 한마디",11,accent,true);
-            Label(new Rect(r.x+14,r.y+22,150,24),GameRules.ShortChat(speaker.name,9),13,Cream,true);
-            var message=new Rect(r.x+174,r.y+2-Mathf.Sin(pop*Mathf.PI)*2,r.width-188,r.height-4);
-            int size=22; text.fontStyle=FontStyle.Bold;
-            while(size>13) {text.fontSize=size;if(text.CalcHeight(new GUIContent(speaker.chat),message.width)<=message.height)break;size--;}
-            Label(message,speaker.chat,size,Cream,true,TextAnchor.MiddleCenter);
+            GUI.EndGroup();
         }
         void TypingUI()
         {

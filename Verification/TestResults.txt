@@ -98,23 +98,36 @@ PASS fractional times and nomination timestamp survive network serialization
 PASS chat is unavailable in lobby
 PASS chat does not reveal starting player during roulette
 PASS waiting player can send Korean spectator message
-PASS one bubble has a server-owned expiry
-PASS immediate repeated send replaces previous bubble without cooldown
-PASS active player cannot score while editing chat
+PASS bubble expiry and personal one-point-five-second cooldown are server-owned
+PASS early repeated chat cannot replace existing message
+PASS other players can chat during this sender's cooldown
+PASS active player cannot use spectator chat
 PASS unknown sender cannot send chat
-PASS blank chat is rejected without erasing existing bubble
+PASS blank chat cannot erase the existing bubble
 PASS chat is a single line without control characters
 PASS server bounds Korean messages to twenty-four characters
 PASS text truncation preserves full surrogate pairs
+PASS chat just before cooldown boundary is rejected
+PASS new message replaces profile bubble exactly at cooldown boundary
 PASS chat text cannot become scoring input
-PASS one hundred immediate sends leave exactly the latest bubble
+PASS spam cannot bypass cooldown or allocate chat events
 PASS new message refreshes bubble lifetime
 PASS expired bubble clears on host
 PASS eliminated connected spectator can still chat
-PASS chat text and expiry survive snapshot transport
+PASS chat cooldown and message survive snapshot transport
 PASS disconnected spectator cannot chat and loses bubble
 PASS finished match disallows new spectator messages
-PASS rematch clears every spectator bubble
+PASS rematch clears spectator bubbles and cooldowns
+PASS messages wait for live play before flying
+PASS three flight lanes initially receive separate messages
+PASS randomized middle lanes remain below HUD and above typing guide
+PASS repeated snapshots never duplicate flying messages
+PASS messages leave the screen after traversing the full play area
+PASS end of match clears all flying messages
+PASS waiting list stores only each player's latest chat even under bursts
+PASS up to six chats can fly simultaneously while backlog stays bounded
+PASS same-lane chat keeps a gap and never catches the message ahead
+PASS expired queued chat cannot appear late in gameplay
 PASS hard first letter grows orange before any completed word
 PASS backspace does not inflate or shrink orange growth
 PASS typing mistake can animate orange without awarding score
@@ -141,4 +154,4 @@ PASS replacement message takes central spotlight without creating chat history
 PASS real TCP client-to-host transport
 PASS real TCP host-to-client transport
 PASS TCP disconnect notification
-ALL 143 CHECKS PASSED
+ALL 156 CHECKS PASSED
