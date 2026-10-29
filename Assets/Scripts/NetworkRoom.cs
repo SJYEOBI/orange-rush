@@ -40,7 +40,7 @@ namespace OrangeRush
         public bool Connected { get { return server != null; } }
         public void Host(int port)
         {
-            listener = new TcpListener(IPAddress.Any, port); listener.Start(4); IsHost = true;
+            listener = new TcpListener(IPAddress.Any, port); listener.Start(GameRules.MaxPlayers); IsHost = true;
             Task.Run(async () =>
             {
                 while (!stopped)
@@ -70,7 +70,8 @@ namespace OrangeRush
         {
             while (accepted.TryDequeue(out var p))
             {
-                if (peers.Count >= 4) { p.Dispose(); continue; }
+                // The host occupies one of the twenty player slots.
+                if (peers.Count >= GameRules.MaxPlayers - 1) { p.Dispose(); continue; }
                 peers.Add(p); Read(p);
             }
         }

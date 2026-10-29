@@ -3,12 +3,17 @@ using System.Net;
 using System.Net.Sockets;
 
 if(args.Contains("--bots")) { await Bots.Run(); return; }
+if(args.Contains("--crowd")) { await Bots.Crowd(args); return; }
 
 int checks=0;
 void Check(bool condition,string label) { if(!condition) throw new Exception(label); checks++; Console.WriteLine("PASS "+label); }
 var g=new GameRules(7);
 int host=g.Add("Host"), b=g.Add("B"), c=g.Add("C"), d=g.Add("D");
-Check(g.Add("Full")==-1,"4 player limit");
+var capacity=new GameRules(3);
+for(int i=0;i<GameRules.MaxPlayers;i++) Check(capacity.Add("PLAYER "+i)>=0,"player "+(i+1)+" admitted");
+Check(capacity.State.players.Length==20 && capacity.Add("Full")==-1,"twenty player limit includes host");
+capacity.Disconnect(10);
+Check(capacity.Add("Replacement")>=0 && capacity.State.players.Length==20,"lobby vacancy can be filled");
 Check(!g.Command(b,"start",-1,0,0),"only host starts");
 Check(g.Command(host,"start",-1,0,0),"start roulette");
 Check(g.Add("Late")==-1,"late join rejected");
@@ -108,7 +113,51 @@ Check(hardFour.State.duration==13 && hardFour.State.turn==4,"hard fourth turn is
 var wireOptions=new System.Text.Json.JsonSerializerOptions { IncludeFields=true };
 var serialized=System.Text.Json.JsonSerializer.Serialize(new Wire {type="state",protocol=GameRules.ProtocolVersion,state=new Snapshot {mode="Hard",wordProgress=5}},wireOptions);
 var roundTrip=System.Text.Json.JsonSerializer.Deserialize<Wire>(serialized,wireOptions);
-Check(roundTrip.protocol==2 && roundTrip.state.mode=="Hard" && roundTrip.state.wordProgress==5,"difficulty progress and protocol survive wire serialization");
+Check(roundTrip.protocol==3 && roundTrip.state.mode=="Hard" && roundTrip.state.wordProgress==5,"difficulty progress and protocol survive wire serialization");
+
+GameRules Nomination(string mode="Normal")
+{
+    var n=new GameRules(4); for(int i=0;i<3;i++) n.Add("P"+i);
+    n.Command(0,"mode",mode=="Hard"?1:0,0,0);
+    n.Command(0,"start",-1,0,0);n.Tick(5);
+    n.Command(n.State.active,"ready",-1,0,5);n.Tick(8);n.Tick(15);n.Tick(18);
+    return n;
+}
+var delay=Nomination(); int chooser=delay.State.active;
+int chosen=delay.State.players.First(p=>p.id!=chooser).id;
+Check(delay.State.phase=="Nominate" && delay.State.nominationStartedAt==18,"selection timer starts after result screen");
+Check(GameRules.NominationPenalty(delay.State,20.999)==0,"three free selection seconds");
+Check(GameRules.NominationPenalty(delay.State,21)==0,"no deduction exactly at three seconds");
+Check(GameRules.NominationPenalty(delay.State,21.99)==0,"deduction waits for complete overtime second");
+Check(Math.Abs(GameRules.NominationPenalty(delay.State,22)-0.1)<1e-9,"four second selection deducts one tenth");
+Check(Math.Abs(GameRules.NextDuration(delay.State,23)-7.8)<1e-9,"five second selection previews seven point eight seconds");
+Check(!delay.Command(chosen,"nominate",chooser,0,22),"opponent cannot spend another player's selection timer");
+Check(!delay.Command(chooser,"nominate",999,0,22),"invalid nomination keeps timer running");
+Check(delay.State.nominationStartedAt==18,"invalid commands do not restart grace period");
+Check(delay.Command(chooser,"nominate",chosen,0,23),"late selection remains possible");
+Check(Math.Abs(delay.State.duration-7.8)<1e-9 && Math.Abs(delay.State.timePenalty-0.2)<1e-9,"host commits selection penalty to next turn only");
+delay.Command(chosen,"ready",-1,0,24);delay.Tick(27);
+Check(Math.Abs(delay.State.endsAt-34.8)<1e-9,"fractional duration sets precise scoring deadline");
+Check(delay.Command(chosen,"tap",-1,1,34.799),"input just before fractional deadline accepted");
+Check(!delay.Command(chosen,"tap",-1,2,34.8),"input at fractional deadline rejected");
+delay.Tick(37.8);int after=delay.State.players.First(p=>p.id!=chosen).id;
+delay.Command(chosen,"nominate",after,0,37.8);
+Check(delay.State.duration==9 && delay.State.timePenalty==0,"penalty does not accumulate into later turns");
+var hardDelay=Nomination("Hard");int hardChooser=hardDelay.State.active;
+hardDelay.Command(hardChooser,"nominate",hardDelay.State.players.First(p=>p.id!=hardChooser).id,0,23);
+Check(Math.Abs(hardDelay.State.duration-8.8)<1e-9,"hard base increment and selection penalty combine");
+var longDelay=Nomination();
+Check(GameRules.NextDuration(longDelay.State,100000)==1,"overtime cannot reduce challenge below one second");
+longDelay.Command(longDelay.State.active,"nominate",longDelay.State.players.First(p=>p.id!=longDelay.State.active).id,0,100000);
+Check(longDelay.State.duration==1 && longDelay.State.timePenalty==7,"host enforces minimum duration on late selection");
+var automatic=Nomination();int gone=automatic.State.active;
+automatic.Disconnect(gone);
+Check(automatic.State.duration==8 && automatic.State.timePenalty==0,"disconnect auto-selection carries no manual selection penalty");
+var lateTick=Nomination();
+Check(GameRules.NominationPenalty(lateTick.State,17)==0,"clock sample before selection cannot produce negative penalty");
+var fractional=new Wire {type="state",protocol=GameRules.ProtocolVersion,state=new Snapshot {duration=7.8,timePenalty=0.2,nominationStartedAt=18}};
+var fractionalWire=System.Text.Json.JsonSerializer.Deserialize<Wire>(System.Text.Json.JsonSerializer.Serialize(fractional,wireOptions),wireOptions);
+Check(fractionalWire.state.duration==7.8 && fractionalWire.state.timePenalty==0.2 && fractionalWire.state.nominationStartedAt==18,"fractional times and nomination timestamp survive network serialization");
 using(var server=new NetworkRoom())
 using(var client=new NetworkRoom())
 {

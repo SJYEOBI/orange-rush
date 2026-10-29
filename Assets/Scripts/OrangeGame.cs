@@ -32,7 +32,9 @@ namespace OrangeRush
         string ScoreUnit { get { return Hard ? "회" : "타"; } }
         string ScoreLabel { get { return Hard ? "WORDS" : "TAPS"; } }
         int TimeStep { get { return GameRules.TurnStep(state?.mode); } }
-        int NextDuration { get { return state.duration+TimeStep; } }
+        double ServerNow { get { return Now+(Hosting?0:clockOffset); } }
+        double NextDuration { get { return GameRules.NextDuration(state,ServerNow); } }
+        static string Seconds(double value) { return value.ToString("0.0",System.Globalization.CultureInfo.InvariantCulture); }
         string PlayerName(int id) { return state?.players.FirstOrDefault(p => p.id == id)?.name ?? "PLAYER"; }
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot() { if (FindFirstObjectByType<OrangeGame>() == null) new GameObject("Orange Rush").AddComponent<OrangeGame>(); }
@@ -131,7 +133,7 @@ namespace OrangeRush
                     if(w.type!="hello") { incoming.peer.Dispose(); return; }
                     if(w.protocol!=GameRules.ProtocolVersion)
                     {
-                        try { incoming.peer.Send(JsonUtility.ToJson(new Wire { type="error",error="게임 버전이 다릅니다. 모두 v0.2.0 실행판으로 업데이트하세요." })); } catch {}
+                        try { incoming.peer.Send(JsonUtility.ToJson(new Wire { type="error",error="게임 버전이 다릅니다. 모두 v"+GameRules.Version+" 실행판으로 업데이트하세요." })); } catch {}
                         incoming.peer.Dispose(); return;
                     }
                     int id=rules.Add(w.name);
@@ -145,7 +147,7 @@ namespace OrangeRush
             {
                 if(w.type=="welcome")
                 {
-                    if(w.protocol!=GameRules.ProtocolVersion) { error="방장과 게임 버전이 다릅니다. 모두 v0.2.0으로 업데이트하세요."; Leave(false); return; }
+                    if(w.protocol!=GameRules.ProtocolVersion) { error="방장과 게임 버전이 다릅니다. 모두 v"+GameRules.Version+"으로 업데이트하세요."; Leave(false); return; }
                     myId=w.id; connecting=false;
                 }
                 if(w.type=="error") { error=w.error; Leave(false); }
@@ -185,7 +187,7 @@ namespace OrangeRush
             if(state!=null && Button(new Rect(1250,37,140,38),"방 나가기  ↗",Panel,Muted,13)) Leave();
             if(state==null) ConnectionUI(); else RoomUI();
             Label(new Rect(48,853,1050,25),(Hard?"HARD · 오렌지 직접 타이핑 · 복붙 불가":"NORMAL · SPACE를 눌렀다 떼며 연타")+"  ·  동점 통과  ·  매 턴 +"+TimeStep+"초  ·  마지막 1명 우승",13,Muted);
-            Label(new Rect(1180,853,210,25),"2–4 PLAYERS  /  v0.2.0",12,Muted,false,TextAnchor.MiddleRight);
+            Label(new Rect(1150,853,240,25),"2–20 PLAYERS  /  v"+GameRules.Version,12,Muted,false,TextAnchor.MiddleRight);
             GUI.matrix=Matrix4x4.identity;
         }
         void ConnectionUI()
@@ -217,18 +219,21 @@ namespace OrangeRush
         {
             bool lobby=state.phase=="Lobby";
             Label(new Rect(50,116,900,30),lobby?"THE LOBBY  /  친구를 기다리는 중":"LIVE MATCH  /  ROUND "+state.turn.ToString("00")+"  /  "+(Hard?"HARD · 오렌지 타이핑":"NORMAL · 스페이스 연타"),16,Hard?Hex("FFB2CB"):Green,true);
-            Label(new Rect(1040,116,350,30),(Hosting?"HOST":"CONNECTED")+"  ●  "+state.players.Length+" / 4",13,Green,false,TextAnchor.MiddleRight);
+            Label(new Rect(1040,116,350,30),(Hosting?"HOST":"CONNECTED")+"  ●  "+state.players.Length+" / "+GameRules.MaxPlayers,13,Green,false,TextAnchor.MiddleRight);
             Box(new Rect(48,166,950,636),Panel);
             Box(new Rect(1020,166,372,636),Panel);
-            Label(new Rect(1048,189,310,35),"PLAYERS",15,Muted,true);
-            for(int i=0;i<state.players.Length;i++) PlayerCard(state.players[i],i,new Rect(1040,245+i*119,332,100));
+            Label(new Rect(1048,189,310,35),"PLAYERS   ·   "+state.players.Count(p=>p.alive && p.connected)+"명 생존",15,Muted,true);
+            bool compact=state.players.Length>4;
+            for(int i=0;i<state.players.Length;i++)
+                PlayerCard(state.players[i],i,compact?new Rect(1034+(i%2)*176,244+(i/2)*53,168,47):new Rect(1040,245+i*119,332,100),compact);
+            if(compact) Label(new Rect(1040,776,332,20),"이름에 마우스를 올리면 전체 이름 표시",10,Muted,false,TextAnchor.MiddleCenter);
             if(lobby) Lobby(); else Match();
         }
         void Lobby()
         {
             DrawOrange(new Rect(450,193,145,145),Mathf.Sin(Time.unscaledTime)*8);
             Label(new Rect(100,352,850,54),"오늘은 어떤 오렌지?",33,Cream,true,TextAnchor.MiddleCenter);
-            Label(new Rect(100,410,850,35),Hosting?"난이도를 고르고 친구가 모이면 시작하세요.":"방장이 난이도를 고르고 있어요. 선택은 모두에게 적용됩니다.",16,Muted,false,TextAnchor.MiddleCenter);
+            Label(new Rect(100,410,850,35),Hosting?"2~20명 온라인 대결! 난이도를 고르고 시작하세요.":"방장이 난이도를 고르고 있어요. 선택은 모두에게 적용됩니다.",16,Muted,false,TextAnchor.MiddleCenter);
             ModeCard(new Rect(90,475,421,112),false,"NORMAL · 기본","스페이스 연타 = 1타 · 매 턴 +1초",Orange);
             ModeCard(new Rect(534,475,421,112),true,"HARD · 하드","오렌지 완성 = 1회 · 매 턴 +2초",Hex("FFB2CB"));
             Label(new Rect(100,598,850,34),Hard?"7 → 9 → 11초 · 두벌식 오렌지 타이핑 · Enter 불필요 · 복붙 불가":"7 → 8 → 9초 · 스페이스 연타 · 룰렛으로 첫 주자 선정",15,Hard?Hex("FFB2CB"):Muted,false,TextAnchor.MiddleCenter);
@@ -265,11 +270,12 @@ namespace OrangeRush
                 return;
             }
             Label(new Rect(82,193,570,36),PlayerName(state.active)+(Mine?"  ·  MY TURN":"  ·  도전 중"),23,Cream,true);
-            Label(new Rect(730,193,230,36),"이번 턴  "+state.duration+"초",20,Orange,true,TextAnchor.MiddleRight);
+            Label(new Rect(730,193,230,36),"이번 턴  "+Seconds(state.duration)+"초",20,Orange,true,TextAnchor.MiddleRight);
             Box(new Rect(82,247,880,88),Hex("111925"));
             Label(new Rect(108,260,400,26),"넘어야 할 기록",14,Muted);
             Label(new Rect(108,283,400,37),state.target+" "+ScoreLabel,28,Green,true);
-            Label(new Rect(580,267,355,45),"다음 턴은 "+NextDuration+"초  ↗",18,Muted,false,TextAnchor.MiddleRight);
+            Label(new Rect(580,257,355,36),"다음 턴은 "+Seconds(NextDuration)+"초  ↗",18,Muted,false,TextAnchor.MiddleRight);
+            Label(new Rect(525,296,410,26),state.timePenalty>0?"이전 지목 지연  −"+Seconds(state.timePenalty)+"초 적용":"지목 3초 초과 시 다음 주자 시간 감소",12,state.timePenalty>0?Hex("FFA7A7"):Muted,false,TextAnchor.MiddleRight);
             if(phase=="Ready")
             {
                 DrawOrange(new Rect(433,368,180,180),-8);
@@ -287,13 +293,17 @@ namespace OrangeRush
             if(phase=="Playing")
             {
                 float remaining=(float)Remaining();
-                Label(new Rect(100,347,850,60),remaining.ToString("0.0")+"s",38,remaining<3?Hex("FFAD99"):Orange,true,TextAnchor.MiddleCenter);
-                Box(new Rect(122,421,800,8),Hex("30394A"));
-                Box(new Rect(122,421,800*Mathf.Clamp01(remaining/state.duration),8),Orange);
+                Label(new Rect(450,347,490,60),remaining.ToString("0.0")+"s",38,remaining<3?Hex("FFAD99"):Orange,true,TextAnchor.MiddleCenter);
+                Box(new Rect(480,421,430,8),Hex("30394A"));
+                Box(new Rect(480,421,430*Mathf.Clamp01(remaining/(float)state.duration),8),Orange);
                 float pulse=Mathf.Clamp01(1-(Time.unscaledTime-lastPulse)*9);
-                DrawOrange(new Rect(168-pulse*6,470-pulse*6,170+pulse*12,170+pulse*12),pulse*10);
-                Label(new Rect(370,441,530,170),state.taps.ToString(),112,Cream,true,TextAnchor.MiddleCenter);
-                Label(new Rect(390,609,490,35),ScoreLabel+"  /  "+(state.taps>=state.target?"기록 통과!":"앞으로 "+(state.target-state.taps)+ScoreUnit),18,Green,true,TextAnchor.MiddleCenter);
+                // Orange-only viewport: growth/rotation cannot cover score or typing text.
+                GUI.BeginGroup(new Rect(98,345,335,310));
+                float size=224+Mathf.Min(36,state.taps*(Hard?7f:1.5f))+pulse*18;
+                DrawOrange(new Rect((335-size)/2,(310-size)/2,size,size),pulse*5);
+                GUI.EndGroup();
+                Label(new Rect(450,441,490,150),state.taps.ToString(),112,Cream,true,TextAnchor.MiddleCenter);
+                Label(new Rect(450,609,490,35),ScoreLabel+"  /  "+(state.taps>=state.target?"기록 통과!":"앞으로 "+(state.target-state.taps)+ScoreUnit),18,Green,true,TextAnchor.MiddleCenter);
                 if(Hard) { TypingUI(); return; }
                 Box(new Rect(300,694,445,60),Mine?(pulse>0?Orange:Hex("344157")):Hex("253041"));
                 Label(new Rect(300,694,445,60),Mine?"S P A C E   연타!":"친구를 응원해주세요!",22,Mine?Cream:Muted,true,TextAnchor.MiddleCenter); return;
@@ -306,9 +316,15 @@ namespace OrangeRush
             }
             if(phase=="Nominate")
             {
-                DrawOrange(new Rect(433,375,180,180),-10);
-                Label(new Rect(100,584,850,55),Mine?"다음은 누구? 오른쪽 친구를 클릭!":"다음 도전자를 지목하고 있어요.",29,Cream,true,TextAnchor.MiddleCenter);
-                Label(new Rect(100,658,850,45),"목표 "+state.target+ScoreUnit+"  ·  다음 제한 시간 "+NextDuration+"초",20,Orange,false,TextAnchor.MiddleCenter);
+                double elapsed=Math.Max(0,ServerNow-state.nominationStartedAt);
+                double penalty=GameRules.NominationPenalty(state,ServerNow);
+                Label(new Rect(100,347,850,37),elapsed<=3?"PICK THE NEXT ORANGE":"선택 지연! 다음 주자의 시간이 줄어듭니다",20,elapsed<=3?Green:Hex("FFA7A7"),true,TextAnchor.MiddleCenter);
+                DrawOrange(new Rect(200,417,145,145),-10);
+                Label(new Rect(405,401,410,98),elapsed<=3?Seconds(3-elapsed)+"초":Seconds(elapsed-3)+"초 초과",49,elapsed<=3?Cream:Hex("FFA7A7"),true,TextAnchor.MiddleCenter);
+                Label(new Rect(405,509,410,44),"다음 도전 시간  "+Seconds(NextDuration)+"초",23,Orange,true,TextAnchor.MiddleCenter);
+                Label(new Rect(100,592,850,47),Mine?"다음은 누구? 오른쪽 친구를 클릭!":"다음 도전자를 지목하고 있어요.",28,Cream,true,TextAnchor.MiddleCenter);
+                Label(new Rect(100,660,850,36),"목표 "+state.target+ScoreUnit+"  ·  지목 지연 −"+Seconds(penalty)+"초",20,Orange,false,TextAnchor.MiddleCenter);
+                Label(new Rect(100,718,850,48),"3초 안에 선택 · 초과 1초마다 다음 주자 −0.1초\n최소 1초 보장 · 감소는 다음 주자 한 턴에만 적용",15,Muted,false,TextAnchor.MiddleCenter);
             }
         }
         void TypingUI()
@@ -337,12 +353,28 @@ namespace OrangeRush
             Label(new Rect(100,582,850,70),state.players[Math.Max(0,chosen)].name,45,colors[Math.Max(0,chosen)%4],true,TextAnchor.MiddleCenter);
             Label(new Rect(100,689,850,42),remain<0.8f?"첫 번째 플레이어 당첨!":"두근두근… 첫 번째 도전자를 뽑는 중",19,Muted,false,TextAnchor.MiddleCenter);
         }
-        void PlayerCard(Player p,int i,Rect r)
+        void PlayerCard(Player p,int i,Rect r,bool compact)
         {
             bool eligible=Mine && state.phase=="Nominate" && p.alive && p.connected && p.id!=myId;
             bool active=p.id==state.active && state.phase!="Lobby" && state.phase!="Roulette";
             Box(r,active?Hex("3A302A"):Hex("242D3D"));
             if(eligible && Button(r,"",Hex("34442F"),Cream,14)) Command("nominate",p.id);
+            if(compact)
+            {
+                Circle(new Rect(r.x+7,r.y+11,25,25),p.alive?colors[i%4]:Muted);
+                Label(new Rect(r.x+7,r.y+11,25,25),(i+1).ToString(),12,Bg,true,TextAnchor.MiddleCenter);
+                string name=p.name+(p.id==myId?" · 나":"");
+                if(name.Length>8) name=name.Substring(0,7)+"…";
+                Label(new Rect(r.x+40,r.y+3,122,23),name,13,p.alive?Cream:Muted,true);
+                string small=!p.connected?"연결 끊김":!p.alive?"탈락 · 관전":eligible?"지목하기 →":active?"● 도전 중":"최고 "+p.best+ScoreUnit;
+                Label(new Rect(r.x+40,r.y+25,122,18),small,10,eligible?Green:Muted);
+                if(r.Contains(Event.current.mousePosition))
+                {
+                    Box(new Rect(1035,209,345,29),Bg);
+                    Label(new Rect(1043,209,330,29),p.name+(p.id==myId?" (나)":""),14,Cream,true);
+                }
+                return;
+            }
             Circle(new Rect(r.x+16,r.y+25,48,48),p.alive?colors[i%4]:Muted);
             Label(new Rect(r.x+16,r.y+25,48,48),(i+1).ToString(),21,Bg,true,TextAnchor.MiddleCenter);
             Label(new Rect(r.x+80,r.y+15,236,32),p.name+(p.id==myId?"  (나)":""),18,p.alive?Cream:Muted,true);

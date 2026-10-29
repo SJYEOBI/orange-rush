@@ -25,3 +25,17 @@ v0.2.0 / 2026-10-29
   physical D H F P S W L sequence then increased score to exactly 1.
 - No editable word field exists; OS clipboard and IME text are not used for scoring.
 - This prevents clipboard scoring, not arbitrary input macros or modified clients.
+
+
+v0.3.0 / 2026-10-29 / Unity 6000.0.59f2 / Windows x64
+- Unity standalone build succeeded.
+- All 97 rules and TCP checks passed, including 20-player capacity, complete-second nomination penalties, minimum 1s, fractional deadlines, and non-cumulative penalties.
+- Nineteen independent loopback TCP clients joined the actual Unity executable host (20 players total) in both Normal and Hard matches. Every client received the complete 20-player roster.
+- A 21st actual connection was closed by the Unity host.
+- Normal match: 12 taps, five-second nomination, second turn 7.8s with 0.2s penalty, third turn restored to 9.0s.
+- Hard match: two completed words, five-second nomination, second turn 8.8s with 0.2s penalty, third turn restored to 11.0s.
+- Actual full 20-player roster visually inspected: 2 columns, all cards visible, long names abbreviated with full-name hover.
+- Normal gameplay and Hard partial word input screens visually inspected: larger orange occupies its own clipped viewport and does not cover timer, score, word input, or physical-key guides.
+- Screenshots: docs/v030-normal.jpg and docs/v030-hard.jpg.
+- No new vocal audio was added in this release.
+- External networks and twenty physical PCs were not tested; transport tests used separate clients on this computer.

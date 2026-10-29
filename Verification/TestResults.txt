@@ -1,4 +1,25 @@
-PASS 4 player limit
+PASS player 1 admitted
+PASS player 2 admitted
+PASS player 3 admitted
+PASS player 4 admitted
+PASS player 5 admitted
+PASS player 6 admitted
+PASS player 7 admitted
+PASS player 8 admitted
+PASS player 9 admitted
+PASS player 10 admitted
+PASS player 11 admitted
+PASS player 12 admitted
+PASS player 13 admitted
+PASS player 14 admitted
+PASS player 15 admitted
+PASS player 16 admitted
+PASS player 17 admitted
+PASS player 18 admitted
+PASS player 19 admitted
+PASS player 20 admitted
+PASS twenty player limit includes host
+PASS lobby vacancy can be filled
 PASS only host starts
 PASS start roulette
 PASS late join rejected
@@ -50,7 +71,28 @@ PASS typing commands cannot score in normal mode
 PASS hard elimination also adds exactly two seconds
 PASS hard fourth turn is thirteen seconds
 PASS difficulty progress and protocol survive wire serialization
+PASS selection timer starts after result screen
+PASS three free selection seconds
+PASS no deduction exactly at three seconds
+PASS deduction waits for complete overtime second
+PASS four second selection deducts one tenth
+PASS five second selection previews seven point eight seconds
+PASS opponent cannot spend another player's selection timer
+PASS invalid nomination keeps timer running
+PASS invalid commands do not restart grace period
+PASS late selection remains possible
+PASS host commits selection penalty to next turn only
+PASS fractional duration sets precise scoring deadline
+PASS input just before fractional deadline accepted
+PASS input at fractional deadline rejected
+PASS penalty does not accumulate into later turns
+PASS hard base increment and selection penalty combine
+PASS overtime cannot reduce challenge below one second
+PASS host enforces minimum duration on late selection
+PASS disconnect auto-selection carries no manual selection penalty
+PASS clock sample before selection cannot produce negative penalty
+PASS fractional times and nomination timestamp survive network serialization
 PASS real TCP client-to-host transport
 PASS real TCP host-to-client transport
 PASS TCP disconnect notification
-ALL 55 CHECKS PASSED
+ALL 97 CHECKS PASSED

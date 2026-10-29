@@ -18,8 +18,8 @@ namespace OrangeRush
         public string phase = "Lobby";
         public string mode = "Normal";
         public int wordProgress;
-        public int active = -1, host = 0, turn = 1, duration = 7, target, taps, winner = -1;
-        public double endsAt, serverTime;
+        public int active = -1, host = 0, turn = 1, target, taps, winner = -1;
+        public double duration = 7, endsAt, serverTime, nominationStartedAt, timePenalty;
         public string message = "친구들을 초대하고 게임을 시작하세요.";
         public bool passed;
     }
@@ -33,8 +33,21 @@ namespace OrangeRush
     // Pure rules: all mutations run on the host's Unity main thread.
     public class GameRules
     {
-        public const int ProtocolVersion = 2;
+        public const int ProtocolVersion = 3;
+        public const string Version = "0.3.0";
+        public const int MaxPlayers = 20;
+        public const double NominationGrace = 3, MinimumDuration = 1;
         public static int TurnStep(string mode) { return mode == "Hard" ? 2 : 1; }
+        public static double BaseDuration(int turn, string mode) { return 7 + (turn - 1) * TurnStep(mode); }
+        public static double NominationPenalty(Snapshot state, double now)
+        {
+            if (state.phase != "Nominate") return 0;
+            // Three free seconds, then one tenth per COMPLETE extra second.
+            double seconds = Math.Floor(Math.Max(0, now - state.nominationStartedAt - NominationGrace) + 0.000001);
+            return Math.Min(seconds / 10, BaseDuration(state.turn + 1, state.mode) - MinimumDuration);
+        }
+        public static double NextDuration(Snapshot state, double now)
+        { return BaseDuration(state.turn + 1, state.mode) - NominationPenalty(state, now); }
         public readonly Snapshot State = new Snapshot();
         readonly Random random;
         int nextId;
@@ -42,7 +55,7 @@ namespace OrangeRush
         public GameRules(int seed = -1) { random = seed < 0 ? new Random() : new Random(seed); }
         public int Add(string name)
         {
-            if (State.phase != "Lobby" || State.players.Length >= 4) return -1;
+            if (State.phase != "Lobby" || State.players.Length >= MaxPlayers) return -1;
             var p = new Player { id = nextId++, name = Clean(name) };
             State.players = State.players.Concat(new[] { p }).ToArray();
             return p.id;
@@ -88,7 +101,7 @@ namespace OrangeRush
             if (command == "nominate" && sender == State.active && State.phase == "Nominate" &&
                 State.players.Any(p => p.id == target && p.id != sender && p.alive && p.connected))
             {
-                Next(target); return true;
+                Next(target, NominationPenalty(State, now)); return true;
             }
             if (command == "rematch" && sender == State.host && State.phase == "Finished")
             {
@@ -96,13 +109,17 @@ namespace OrangeRush
                 foreach (var p in State.players) { p.alive = true; p.best = 0; }
                 State.phase = "Lobby"; State.turn = 1; State.duration = 7; State.target = 0;
                 State.taps = 0; State.wordProgress = 0; State.active = -1; State.winner = -1;
+                State.timePenalty = 0; State.nominationStartedAt = 0; State.endsAt = 0; State.passed = false;
                 State.message = "다시 모였네요. 새로운 승부를 시작하세요!"; return true;
             }
             return false;
         }
-        void Next(int id)
+        void Next(int id, double penalty = 0)
         {
-            State.active = id; State.turn++; State.duration += TurnStep(State.mode);
+            State.active = id; State.turn++;
+            State.timePenalty = penalty;
+            State.duration = Math.Max(MinimumDuration, BaseDuration(State.turn, State.mode) - penalty);
+            State.nominationStartedAt = 0;
             State.taps = 0; State.wordProgress = 0; State.phase = "Ready";
             State.message = "키보드 준비! 준비 완료를 누르면 3초 뒤 시작합니다.";
         }
@@ -128,7 +145,11 @@ namespace OrangeRush
             {
                 var alive = State.players.Where(p => p.alive && p.connected).ToArray();
                 if (alive.Length <= 1) Finish(alive);
-                else if (State.passed) State.phase = "Nominate";
+                else if (State.passed)
+                {
+                    State.phase = "Nominate"; State.nominationStartedAt = now;
+                    State.message = "3초 안에 다음 도전자를 지목하세요!";
+                }
                 else Next(alive[random.Next(alive.Length)].id);
                 return true;
             }
