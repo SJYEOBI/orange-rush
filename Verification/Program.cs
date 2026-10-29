@@ -213,7 +213,7 @@ var motion=new ScrollingChats();motion.Update(motionState,5);
 Check(motion.Active.Count==0 && motion.WaitingCount==3,"messages wait for live play before flying");
 motionState.phase="Playing";motion.Update(motionState,5);
 Check(motion.Active.Count==3 && motion.WaitingCount==0 && motion.Active.Select(m=>m.lane).Distinct().Count()==3,"three flight lanes initially receive separate messages");
-Check(motion.Active.All(m=>m.Y>=476 && m.Y+28<=612),"randomized middle lanes remain below HUD and above typing guide");
+Check(motion.Active.All(m=>m.Y>=476 && m.Y+ScrollingChats.LineHeight<=628),"randomized middle lanes remain below HUD and above typing guide");
 motion.Update(motionState,5.1);
 Check(motion.Active.Count==3 && motion.WaitingCount==0,"repeated snapshots never duplicate flying messages");
 motion.Update(motionState,10.5);

@@ -44,7 +44,7 @@ namespace OrangeRush
     public class GameRules
     {
         public const int ProtocolVersion = 8;
-        public const string Version = "0.4.1";
+        public const string Version = "0.4.2";
         public const int MaxPlayers = 20;
         public const int ChatLength = 24;
         public const double ChatLifetime = 8;

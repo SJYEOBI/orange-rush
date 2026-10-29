@@ -79,3 +79,10 @@ v0.4.1 / 2026-10-30 (Asia/Seoul)
 - Message only (no sender name), font size 22. Lane Y ranges 476..484, 526..534, 576..584 with 28px text stay below HUD/status (ends 469) and above typing input (starts 665).
 - Brief earlier preview admitted 3 TCP clients. No further UI match was run after the user took control of the game. Final build uses a separate directory.
 - Final Windows x64 build succeeded in a separate v0.4.1 directory.
+
+
+v0.4.2 / 2026-10-30 (Asia/Seoul)
+- Scrolling chat font increased from 22 normal to 26 bold. Shared font-size and line-height constants keep spacing aligned with rendering.
+- Line height increased to 36px; the three lane bounds remain within y=476..620, below the HUD and above the typing guide. Width estimates include extra bold glyph spacing.
+- One existing fast rule/TCP suite passed: 156 checks. No additional full UI match was run for this visual update.
+- Windows x64 build succeeded in a separate v0.4.2 directory. Network protocol remains 8, compatible with v0.4.1.

@@ -10,6 +10,7 @@ namespace OrangeRush
     {
         public const double ViewWidth = 880, Speed = 210, Gap = 36;
         public const int MaxVisible = 6, LaneCount = 3;
+        public const int FontSize = 26, LineHeight = 36;
         public sealed class Message
         {
             public int sender, sequence, lane;
@@ -33,7 +34,7 @@ namespace OrangeRush
             {
                 waiting.RemoveAll(m => m.sender == p.id);
                 waiting.Add(new Message { sender = p.id, sequence = p.chatSequence, name = p.name, text = p.chat, expiresAt = p.chatUntil,
-                    width = new System.Globalization.StringInfo(p.chat).LengthInTextElements * 22 + 16 });
+                    width = new System.Globalization.StringInfo(p.chat).LengthInTextElements * (FontSize + 2) + 16 });
             }
             seenSequence = Math.Max(seenSequence, state.chatSequence);
             waiting.RemoveAll(m => m.expiresAt <= now || !state.players.Any(p => p.id == m.sender && p.connected));

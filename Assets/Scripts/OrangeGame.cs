@@ -427,7 +427,7 @@ namespace OrangeRush
         {
             // Three middle lanes sit below the score/timer and above the typing guide.
             GUI.BeginGroup(new Rect(82,472,880,156));
-            var style=new GUIStyle(text) {fontSize=22,fontStyle=FontStyle.Normal,wordWrap=false,alignment=TextAnchor.MiddleLeft};
+            var style=new GUIStyle(text) {fontSize=ScrollingChats.FontSize,fontStyle=FontStyle.Bold,wordWrap=false,alignment=TextAnchor.MiddleLeft};
             foreach(var m in scrollingChats.Active)
             {
                 float progress=Mathf.Clamp01((float)((ServerNow-m.startsAt)/m.Duration));
@@ -438,7 +438,7 @@ namespace OrangeRush
                 int index=Array.FindIndex(state.players,p=>p.id==m.sender);
                 Color ink=Color.Lerp(Cream,colors[Math.Max(0,index)%colors.Length],0.3f);
                 ink.a=0.76f*fade;
-                var r=new Rect(x,(float)m.Y-472,width,28);
+                var r=new Rect(x,(float)m.Y-472,width,ScrollingChats.LineHeight);
                 style.normal.textColor=new Color(0.04f,0.06f,0.09f,0.45f*fade);
                 GUI.Label(new Rect(r.x+1,r.y+1,r.width,r.height),line,style);
                 style.normal.textColor=ink;GUI.Label(r,line,style);
