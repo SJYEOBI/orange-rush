@@ -61,3 +61,12 @@ Final v0.3.1 / personal nomination penalty, growth and voice buttons
 - Actual Normal-mode Unity host with 19 TCP clients delivered 52 ordered voice events and simultaneous latest-only chat bubbles. Large alternating left/right bubbles and three audio buttons visually inspected.
 - A native user continued the running Normal match and registered 67 Space taps. The final build was produced in a separate directory without closing that user's game.
 - Following the user's request to minimize testing, the final personal-penalty change received one fast rule check pass and a build, with no additional UI match run.
+
+
+v0.4.0 / 2026-10-29
+- One fast rules and TCP suite passed: 143 checks.
+- Verified nineteen spectators can trigger voice at the same timestamp. Personal 0.12s cooldown, exact cooldown boundary, repeated overlapping syllables, event serial and serialization, invalid/active senders and rematch reset are covered.
+- Latest-message sequence identifies the central chat even for equal timestamps; replacements take over without retaining a history.
+- Client playback uses immediate AudioSource.PlayOneShot without a global playback queue or isPlaying gate. Real voice capacity increased from 32 to 64 for concurrent short syllables.
+- Prior 20-client integration evidence above belongs to v0.3.x; no long 20-player match was repeated for this update.
+- Short v0.4.0 preview admitted 3 TCP clients (4 total). A Windows network-permission dialog blocked visual inspection, so no further UI match was run.

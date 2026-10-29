@@ -122,18 +122,23 @@ PASS replayed input cannot inflate orange size
 PASS orange growth resets for next player
 PASS every accepted space tap also grows the orange
 PASS spectator can trigger oh voice button
-PASS server assigns voice identity serial and exact clip duration
-PASS another player cannot overlap a playing syllable
-PASS voice stays locked until pronunciation ends
-PASS next syllable starts exactly when previous clip ends
-PASS accepted syllables remain ordered
+PASS voice event keeps speaker identity and clip metadata
+PASS personal voice cooldown is one hundred twenty milliseconds
+PASS two spectators can trigger overlapping voices at exactly the same time
+PASS personal cooldown rejects premature repeat only for that sender
+PASS same sender can play another syllable before the previous pronunciation ends
+PASS other player's cooldown remains independent on repeated input
+PASS overlapping accepted sounds each receive an ordered event
 PASS active challenger cannot trigger spectator voice buttons
 PASS invalid voice index rejected without consuming cooldown
 PASS unknown voice sender rejected
-PASS ji voice button works without affecting score
-PASS voice cooldown and event serial survive transport
-PASS rematch clears voice lock but preserves room event serial
+PASS voice playback cannot alter game score
+PASS personal voice cooldown survives snapshot transport
+PASS rematch clears personal cooldowns and preserves voice event serial
+PASS all nineteen spectators can trigger sound simultaneously
+PASS central chat selects the latest message even at identical timestamps
+PASS replacement message takes central spotlight without creating chat history
 PASS real TCP client-to-host transport
 PASS real TCP host-to-client transport
 PASS TCP disconnect notification
-ALL 138 CHECKS PASSED
+ALL 143 CHECKS PASSED

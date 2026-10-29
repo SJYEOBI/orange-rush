@@ -15,6 +15,8 @@ namespace OrangeRush
         public int best;
         public string chat = "";
         public double chatUntil;
+        public int chatSequence;
+        public double voiceReadyAt;
         public double pendingPenalty;
     }
     [Serializable] public class Snapshot
@@ -22,7 +24,7 @@ namespace OrangeRush
         public Player[] players = new Player[0];
         public string phase = "Lobby";
         public string mode = "Normal";
-        public int wordProgress, inputCount;
+        public int wordProgress, inputCount, chatSequence;
         public int voiceIndex = -1, voiceSpeaker = -1, voiceSequence;
         public double voiceEndsAt;
         public int active = -1, host = 0, turn = 1, target, taps, winner = -1;
@@ -40,11 +42,12 @@ namespace OrangeRush
     // Pure rules: all mutations run on the host's Unity main thread.
     public class GameRules
     {
-        public const int ProtocolVersion = 6;
-        public const string Version = "0.3.1";
+        public const int ProtocolVersion = 7;
+        public const string Version = "0.4.0";
         public const int MaxPlayers = 20;
         public const int ChatLength = 24;
         public const double ChatLifetime = 8;
+        public const double VoiceCooldown = 0.12;
         public const double NominationGrace = 3, MinimumDuration = 1;
         public static int TurnStep(string mode) { return mode == "Hard" ? 2 : 1; }
         // Exact trimmed PCM lengths of Resources/Voice/{oh,ren,ji}.wav.
@@ -96,6 +99,7 @@ namespace OrangeRush
             var player = State.players.First(p => p.id == sender);
             // No cooldown or history: each message replaces this player's one bubble.
             player.chat = value; player.chatUntil = now + ChatLifetime;
+            player.chatSequence = ++State.chatSequence;
             return true;
         }
         public int Add(string name)
@@ -115,10 +119,11 @@ namespace OrangeRush
             Tick(now);
             var player = State.players.FirstOrDefault(p => p.id == sender && p.connected);
             if (player == null) return false;
-            if (command == "voice" && CanChat(State,sender) && target >= 0 && target < 3 && now >= State.voiceEndsAt)
+            if (command == "voice" && CanChat(State,sender) && target >= 0 && target < 3 && now >= player.voiceReadyAt)
             {
                 State.voiceIndex = target; State.voiceSpeaker = sender; State.voiceSequence++;
                 State.voiceEndsAt = now + VoiceDuration(target);
+                player.voiceReadyAt = now + VoiceCooldown;
                 return true;
             }
             if (command == "mode" && sender == State.host && State.phase == "Lobby" && (target == 0 || target == 1))
@@ -159,7 +164,7 @@ namespace OrangeRush
             if (command == "rematch" && sender == State.host && State.phase == "Finished")
             {
                 State.players = State.players.Where(p => p.connected).ToArray();
-                foreach (var p in State.players) { p.alive = true; p.best = 0; p.chat = ""; p.chatUntil = 0; p.pendingPenalty = 0; }
+                foreach (var p in State.players) { p.alive = true; p.best = 0; p.chat = ""; p.chatUntil = 0; p.chatSequence = 0; p.pendingPenalty = 0; p.voiceReadyAt = 0; }
                 State.phase = "Lobby"; State.turn = 1; State.duration = 7; State.target = 0;
                 State.taps = 0; State.wordProgress = 0; State.active = -1; State.winner = -1;
                 State.timePenalty = 0; State.nominationStartedAt = 0; State.endsAt = 0; State.passed = false;
@@ -228,7 +233,7 @@ namespace OrangeRush
             if (p == null) return;
             if (State.phase == "Lobby" || State.phase == "Finished")
             { State.players = State.players.Where(x => x.id != id).ToArray(); return; }
-            p.connected = false; p.alive = false; p.chat = ""; p.chatUntil = 0; p.pendingPenalty = 0;
+            p.connected = false; p.alive = false; p.chat = ""; p.chatUntil = 0; p.pendingPenalty = 0; p.voiceReadyAt = 0;
             var alive = State.players.Where(x => x.alive && x.connected).ToArray();
             if (alive.Length <= 1) Finish(alive);
             else if (State.active == id) Next(alive[random.Next(alive.Length)].id);

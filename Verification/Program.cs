@@ -113,7 +113,7 @@ Check(hardFour.State.duration==13 && hardFour.State.turn==4,"hard fourth turn is
 var wireOptions=new System.Text.Json.JsonSerializerOptions { IncludeFields=true };
 var serialized=System.Text.Json.JsonSerializer.Serialize(new Wire {type="state",protocol=GameRules.ProtocolVersion,state=new Snapshot {mode="Hard",wordProgress=5}},wireOptions);
 var roundTrip=System.Text.Json.JsonSerializer.Deserialize<Wire>(serialized,wireOptions);
-Check(roundTrip.protocol==6 && roundTrip.state.mode=="Hard" && roundTrip.state.wordProgress==5,"difficulty progress and protocol survive wire serialization");
+Check(roundTrip.protocol==7 && roundTrip.state.mode=="Hard" && roundTrip.state.wordProgress==5,"difficulty progress and protocol survive wire serialization");
 
 GameRules Nomination(string mode="Normal")
 {
@@ -230,21 +230,33 @@ var voiceGame=Nomination("Hard");int speaker=voiceGame.State.players.First(p=>p.
 int otherSpeaker=voiceGame.State.players.First(p=>p.id!=speaker && p.id!=voiceGame.State.active).id;
 Check(voiceGame.Command(speaker,"voice",0,0,18),"spectator can trigger oh voice button");
 double voiceEnd=voiceGame.State.voiceEndsAt;
-Check(voiceGame.State.voiceIndex==0 && voiceGame.State.voiceSpeaker==speaker && voiceGame.State.voiceSequence==1 && Math.Abs(voiceEnd-18-GameRules.VoiceDuration(0))<1e-9,"server assigns voice identity serial and exact clip duration");
-Check(!voiceGame.Command(otherSpeaker,"voice",1,0,18.1),"another player cannot overlap a playing syllable");
-Check(!voiceGame.Command(speaker,"voice",2,0,voiceEnd-.0001),"voice stays locked until pronunciation ends");
-Check(voiceGame.Command(otherSpeaker,"voice",1,0,voiceEnd),"next syllable starts exactly when previous clip ends");
-Check(voiceGame.State.voiceSequence==2 && voiceGame.State.voiceIndex==1,"accepted syllables remain ordered");
-double renEnd=voiceGame.State.voiceEndsAt;
-Check(!voiceGame.Command(voiceGame.State.active,"voice",2,0,renEnd),"active challenger cannot trigger spectator voice buttons");
-Check(!voiceGame.Command(speaker,"voice",9,0,renEnd) && voiceGame.State.voiceSequence==2,"invalid voice index rejected without consuming cooldown");
-Check(!voiceGame.Command(999,"voice",2,0,renEnd),"unknown voice sender rejected");
-Check(voiceGame.Command(speaker,"voice",2,0,renEnd) && voiceGame.State.taps==0,"ji voice button works without affecting score");
+double repeatAt=voiceGame.State.players.First(p=>p.id==speaker).voiceReadyAt;
+Check(voiceGame.State.voiceIndex==0 && voiceGame.State.voiceSpeaker==speaker && voiceGame.State.voiceSequence==1 && Math.Abs(voiceEnd-18-GameRules.VoiceDuration(0))<1e-9,"voice event keeps speaker identity and clip metadata");
+Check(Math.Abs(repeatAt-18-.12)<1e-9,"personal voice cooldown is one hundred twenty milliseconds");
+Check(voiceGame.Command(otherSpeaker,"voice",1,0,18),"two spectators can trigger overlapping voices at exactly the same time");
+Check(!voiceGame.Command(speaker,"voice",2,0,repeatAt-.0001),"personal cooldown rejects premature repeat only for that sender");
+Check(voiceGame.Command(speaker,"voice",2,0,repeatAt),"same sender can play another syllable before the previous pronunciation ends");
+Check(voiceGame.Command(otherSpeaker,"voice",0,0,repeatAt),"other player's cooldown remains independent on repeated input");
+Check(voiceGame.State.voiceSequence==4,"overlapping accepted sounds each receive an ordered event");
+repeatAt=voiceGame.State.players.First(p=>p.id==speaker).voiceReadyAt;
+Check(!voiceGame.Command(voiceGame.State.active,"voice",2,0,repeatAt),"active challenger cannot trigger spectator voice buttons");
+Check(!voiceGame.Command(speaker,"voice",9,0,repeatAt) && voiceGame.State.voiceSequence==4,"invalid voice index rejected without consuming cooldown");
+Check(!voiceGame.Command(999,"voice",2,0,repeatAt),"unknown voice sender rejected");
+Check(voiceGame.Command(speaker,"voice",1,0,repeatAt) && voiceGame.State.taps==0,"voice playback cannot alter game score");
 var voiceWire=System.Text.Json.JsonSerializer.Deserialize<Wire>(System.Text.Json.JsonSerializer.Serialize(new Wire{type="state",state=voiceGame.State},wireOptions),wireOptions);
-Check(voiceWire.state.voiceIndex==2 && voiceWire.state.voiceSequence==3 && voiceWire.state.voiceEndsAt==voiceGame.State.voiceEndsAt,"voice cooldown and event serial survive transport");
+Check(voiceWire.state.voiceIndex==1 && voiceWire.state.voiceSequence==5 && voiceWire.state.players.First(p=>p.id==speaker).voiceReadyAt==voiceGame.State.players.First(p=>p.id==speaker).voiceReadyAt,"personal voice cooldown survives snapshot transport");
 voiceGame.State.phase="Finished";
 voiceGame.Command(0,"rematch",-1,0,20);
-Check(voiceGame.State.voiceEndsAt==0 && voiceGame.State.voiceSequence==3,"rematch clears voice lock but preserves room event serial");
+Check(voiceGame.State.voiceEndsAt==0 && voiceGame.State.voiceSequence==5 && voiceGame.State.players.All(p=>p.voiceReadyAt==0),"rematch clears personal cooldowns and preserves voice event serial");
+var crowdVoice=new GameRules(4);for(int i=0;i<20;i++)crowdVoice.Add("V"+i);
+crowdVoice.Command(0,"start",-1,0,0);crowdVoice.Tick(5);
+Check(crowdVoice.State.players.Where(p=>p.id!=crowdVoice.State.active).All(p=>crowdVoice.Command(p.id,"voice",p.id%3,0,5)) && crowdVoice.State.voiceSequence==19,"all nineteen spectators can trigger sound simultaneously");
+int newest=crowdVoice.State.players.First(p=>p.id!=crowdVoice.State.active).id;
+int secondNewest=crowdVoice.State.players.Last(p=>p.id!=crowdVoice.State.active).id;
+crowdVoice.Chat(newest,"첫 번째 말",5);crowdVoice.Chat(secondNewest,"나중에 온 말",5);
+Check(crowdVoice.State.players.OrderByDescending(p=>p.chatSequence).First().id==secondNewest,"central chat selects the latest message even at identical timestamps");
+crowdVoice.Chat(newest,"새 말로 덮어쓰기",5);
+Check(crowdVoice.State.players.OrderByDescending(p=>p.chatSequence).First().id==newest && crowdVoice.State.players.First(p=>p.id==newest).chat=="새 말로 덮어쓰기","replacement message takes central spotlight without creating chat history");
 using(var server=new NetworkRoom())
 using(var client=new NetworkRoom())
 {

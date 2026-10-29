@@ -11,11 +11,13 @@ static class Bots
     public static async Task Crowd(string[] args)
     {
         int port=7777;
+        int count=19;
         chatDemo=args.Contains("--chat");
         voiceDemo=args.Contains("--voice");
         int portArg=Array.IndexOf(args,"--port");if(portArg>=0) port=int.Parse(args[portArg+1]);
-        Console.WriteLine("CROWD connecting 19 real TCP clients to Unity host on "+port);
-        await Task.WhenAll(Enumerable.Range(1,19).Select(i=>CrowdOne(i,port)));
+        int countArg=Array.IndexOf(args,"--count");if(countArg>=0) count=Math.Clamp(int.Parse(args[countArg+1]),1,19);
+        Console.WriteLine("CROWD connecting "+count+" real TCP clients to Unity host on "+port);
+        await Task.WhenAll(Enumerable.Range(1,count).Select(i=>CrowdOne(i,port)));
     }
     static async Task CrowdOne(int index,int port)
     {
@@ -39,7 +41,7 @@ static class Bots
             }
             if(w.type!="state" || w.state==null)continue;
             var s=w.state;
-            if(voiceDemo && s.turn==1 && GameRules.CanChat(s,id) && s.serverTime>=s.voiceEndsAt && s.serverTime-lastVoiceAttempt>=.30)
+            if(voiceDemo && s.turn==1 && GameRules.CanChat(s,id) && s.serverTime>=s.players.First(p=>p.id==id).voiceReadyAt && s.serverTime-lastVoiceAttempt>=.15)
             {
                 await writer.WriteLineAsync(JsonSerializer.Serialize(new Wire{type="voice",target=(index+lastVoiceSeen)%3},options));
                 lastVoiceAttempt=s.serverTime;
