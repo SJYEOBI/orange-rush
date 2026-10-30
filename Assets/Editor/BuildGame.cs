@@ -26,7 +26,8 @@ public static class BuildGame
         AssetDatabase.SaveAssets();
         var output=Environment.GetEnvironmentVariable("ORANGE_BUILD_PATH");
         if(string.IsNullOrEmpty(output)) output="Build/OrangeRush.exe";
-        var result=BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes=new[]{"Assets/Scenes/OrangeRush.unity"},locationPathName=output,target=BuildTarget.StandaloneWindows64,options=BuildOptions.None });
+        var options=Environment.GetEnvironmentVariable("ORANGE_DEVELOPMENT_BUILD")=="1"?BuildOptions.Development:BuildOptions.None;
+        var result=BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes=new[]{"Assets/Scenes/OrangeRush.unity"},locationPathName=output,target=BuildTarget.StandaloneWindows64,options=options });
         if(result.summary.result!=BuildResult.Succeeded) throw new Exception("Build failed: "+result.summary.result);
         Debug.Log("ORANGE_BUILD_SUCCESS "+result.summary.outputPath);
     }

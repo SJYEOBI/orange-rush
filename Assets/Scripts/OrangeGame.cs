@@ -10,7 +10,7 @@ namespace OrangeRush
     {
         static readonly Color Bg = Hex("10151E"), Panel = Hex("1B2230"), Muted = Hex("909BAC"), Orange = Hex("FF9038"), Cream = Hex("FFF3DB"), Green = Hex("B9EE89");
         readonly Color[] colors = { Hex("FF9A4A"), Hex("B4C3FF"), Hex("B9EE89"), Hex("FFB2CB") };
-        NetworkRoom network;
+        IRoomConnection network;
         GameRules rules;
         Snapshot state;
         int myId = -1, sequence;
@@ -19,6 +19,9 @@ namespace OrangeRush
         string chatDraft = "", chatNotice = "";
         bool chatFocused;
         string nickname = "", address = "127.0.0.1", portText = "7777", error = "", localIP = "";
+        string roomCode = "";
+        bool directConnection, creatingRoom;
+        double copiedUntil;
         double clockOffset, nextBroadcast, nextHeartbeat;
         float lastPulse = -10;
         float orangeSize = 160;
@@ -84,11 +87,12 @@ namespace OrangeRush
                 int budget=1000;
                 while(network!=null && budget-->0 && network.inbox.TryDequeue(out var incoming)) Receive(incoming);
                 if(network==null) return;
-                if(network.errors.TryDequeue(out var problem)) { error=problem; if(connecting) Leave(false); }
-                if(Hosting)
+                if(network.errors.TryDequeue(out var problem)) { error=problem; if(connecting || network is RelayRoom) Leave(false); }
+                if(network == null) return;
+                if(Hosting && rules != null)
                 {
                     rules.Tick(Now); state=rules.State;
-                    if(Now>=nextBroadcast) { nextBroadcast=Now+0.05; network.Broadcast(JsonUtility.ToJson(new Wire { type="state", state=state })); }
+                    if(Now>=nextBroadcast) { nextBroadcast=Now+(network is RelayRoom?0.1:0.05); network.Broadcast(JsonUtility.ToJson(new Wire { type="state", state=state })); }
                 }
                 else if(state!=null && Now>=nextHeartbeat) { nextHeartbeat=Now+1; Command("ping"); }
             }
@@ -205,16 +209,39 @@ namespace OrangeRush
             localChatReadyAt=ServerNow+GameRules.ChatCooldown;
             chatDraft=""; chatNotice="";
         }
-        void Connect(bool host)
+        async void Connect(bool host)
         {
-            if(!int.TryParse(portText,out int port) || port<1024 || port>65535) { error="포트는 1024~65535 사이의 숫자를 입력하세요."; return; }
-            error=""; sequence=0; network=new NetworkRoom();
+            if(connecting || network != null) return;
+            int port = 7777;
+            if(directConnection && (!int.TryParse(portText,out port) || port<1024 || port>65535)) { error="포트는 1024~65535 사이의 숫자를 입력하세요."; return; }
+            if(!host && !directConnection && string.IsNullOrWhiteSpace(roomCode)) { error="친구에게 받은 방 코드를 입력해주세요."; return; }
+            error=""; sequence=0; connecting=true; creatingRoom=host;
+            IRoomConnection pending = directConnection?(IRoomConnection)new NetworkRoom():new RelayRoom();
+            network=pending;
             try
             {
-                if(host) { network.Host(port); rules=new GameRules(); myId=rules.Add(nickname); state=rules.State; }
-                else { connecting=true; network.Join(address.Trim(),port,JsonUtility.ToJson(new Wire { type="hello",name=nickname,protocol=GameRules.ProtocolVersion })); }
+                string greeting=JsonUtility.ToJson(new Wire {type="hello",name=nickname,protocol=GameRules.ProtocolVersion});
+                if(pending is RelayRoom relay)
+                {
+                    if(host) await relay.HostAsync(); else await relay.JoinAsync(roomCode,greeting);
+                }
+                else
+                {
+                    var direct=(NetworkRoom)pending;
+                    if(host) direct.Host(port); else direct.Join(address.Trim(),port,greeting);
+                }
+                if(network!=pending) { pending.Dispose(); return; }
+                if(host) { rules=new GameRules(); myId=rules.Add(nickname); state=rules.State; connecting=false; }
             }
-            catch(Exception e) { error="방을 열지 못했습니다: "+e.Message; Leave(false); }
+            catch(Exception e)
+            {
+                if(network!=pending) { pending.Dispose(); return; }
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                Debug.LogWarning("ONLINE_CONNECT_ERROR "+e.GetType().Name+": "+e.Message);
+#endif
+                error=pending is RelayRoom?RelayRoom.FriendlyError(e):"연결하지 못했습니다: "+e.Message;
+                Leave(false);
+            }
         }
         void Leave(bool clearError=true)
         { network?.Dispose(); network=null; state=null; rules=null; myId=-1; connecting=false; clockOffset=0; chatDraft=""; chatNotice=""; chatFocused=false; voiceSource?.Stop(); lastVoiceSequence=0; localVoiceReadyAt=0; localChatReadyAt=0; scrollingChats.Clear(); visualTurn=-1; if(clearError) error=""; }
@@ -251,16 +278,29 @@ namespace OrangeRush
             Label(new Rect(890,179,420,46),"오늘의 스피드왕은?",28,Cream,true);
             Label(new Rect(890,239,420,28),"플레이어 이름",14,Muted);
             nickname=GUI.TextField(new Rect(890,275,430,54),nickname,12,field);
-            Label(new Rect(890,347,315,26),"방장 IP / 도메인",14,Muted);
-            Label(new Rect(1210,347,115,26),"포트",14,Muted);
-            address=GUI.TextField(new Rect(890,382,300,54),address,128,field);
-            portText=GUI.TextField(new Rect(1205,382,115,54),portText,5,field);
             GUI.enabled=!connecting;
+            if(directConnection)
+            {
+                Label(new Rect(890,347,315,26),"방장 IP / 도메인",14,Muted);
+                Label(new Rect(1210,347,115,26),"포트",14,Muted);
+                address=GUI.TextField(new Rect(890,382,300,54),address,128,field);
+                portText=GUI.TextField(new Rect(1205,382,115,54),portText,5,field);
+            }
+            else
+            {
+                Label(new Rect(890,347,430,26),"초대받은 방 코드",14,Muted);
+                var codeStyle=new GUIStyle(field) {fontSize=28,fontStyle=FontStyle.Bold,alignment=TextAnchor.MiddleCenter};
+                roomCode=GUI.TextField(new Rect(890,382,430,54),roomCode,12,codeStyle).ToUpperInvariant();
+                if(string.IsNullOrEmpty(roomCode) && Event.current.type==EventType.Repaint)
+                    Label(new Rect(910,382,390,54),"친구에게 받은 코드",18,Muted,false,TextAnchor.MiddleCenter);
+            }
             if(Button(new Rect(890,465,430,60),"새 방 만들기   +",Orange,Bg,19)) Connect(true);
-            if(Button(new Rect(890,540,430,60),"친구 방 참가하기   →",Hex("2B3545"),Cream,19)) Connect(false);
+            if(Button(new Rect(890,540,430,60),directConnection?"친구 방 참가하기   →":"방 코드로 참가하기   →",Hex("2B3545"),Cream,19)) Connect(false);
             GUI.enabled=true;
-            Label(new Rect(890,619,430,64),connecting?"친구의 방에 연결 중…":"다른 네트워크에서는 방장의 공인 주소와\nTCP 포트 개방이 필요합니다. 안내서를 확인하세요.",13,Muted);
+            Label(new Rect(890,619,430,64),connecting?(creatingRoom?"친구를 초대할 방을 만드는 중…":"친구의 방에 연결 중…"):
+                directConnection?"다른 네트워크에서는 공인 주소와 포트 개방이 필요해요.":"방장은 새 방 만들기, 친구는 코드 입력!\n다른 인터넷에서도 공유기 설정 없이 함께해요.",13,Muted);
             if(connecting && Button(new Rect(890,695,120,36),"접속 취소",Bg,Cream,13)) Leave();
+            if(!connecting && Button(new Rect(890,695,430,30),directConnection?"← 방 코드로 간편 접속":"직접 연결 설정",Bg,Muted,12)) { directConnection=!directConnection; error=""; }
             Label(new Rect(890,736,430,48),error,12,Hex("FFA7A7"));
         }
         void RoomUI()
@@ -337,9 +377,15 @@ namespace OrangeRush
                 GUI.enabled=state.players.Length>=2;
                 if(Button(new Rect(290,661,466,65),"룰렛 돌리고 시작하기   ↻",Hard?Hex("FFB2CB"):Orange,Bg,22)) Command("start");
                 GUI.enabled=true;
-                Label(new Rect(100,744,850,37),"내부 IP: "+localIP+"   /   포트 "+portText,13,Muted,false,TextAnchor.MiddleCenter);
+                if(!(network is RelayRoom)) Label(new Rect(100,744,850,37),"내부 IP: "+localIP+"   /   포트 "+portText,13,Muted,false,TextAnchor.MiddleCenter);
             }
             else Label(new Rect(170,669,700,55),"방장이 시작하면 룰렛이 돌아갑니다.",20,Hard?Hex("FFB2CB"):Orange,false,TextAnchor.MiddleCenter);
+            if(network is RelayRoom relayRoom)
+            {
+                Label(new Rect(145,739,490,43),"방 코드   "+relayRoom.RoomCode,27,Cream,true,TextAnchor.MiddleCenter);
+                if(Button(new Rect(678,740,210,39),Now<copiedUntil?"복사했어요!":"코드 복사",Hex("2B3545"),Cream,15))
+                { GUIUtility.systemCopyBuffer=relayRoom.RoomCode; copiedUntil=Now+2; }
+            }
         }
         void ModeCard(Rect r,bool hard,string title,string description,Color accent)
         {

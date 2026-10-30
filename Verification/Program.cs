@@ -294,4 +294,22 @@ using(var client=new NetworkRoom())
     while(DateTime.UtcNow<limit && !found) { if(server.inbox.TryDequeue(out packet)) found=packet.closed;Thread.Sleep(10); }
     Check(found,"TCP disconnect notification");
 }
+var relayText="{\"type\":\"chat\",\"message\":\"오렌지 🍊 친구와 함께\"}";
+Check(RelayPacketCodec.Decode(RelayPacketCodec.Encode(relayText))==relayText,"relay packets preserve Korean, emoji and small commands");
+var relayRoster=System.Text.Json.JsonSerializer.Serialize(new Wire{type="state",state=new Snapshot{players=Enumerable.Range(0,20).Select(i=>new Player{id=i,name="오렌지친구"+i,chat=new string('지',24)}).ToArray()}},wireOptions);
+var packedRoster=RelayPacketCodec.Encode(relayRoster);
+Check(packedRoster.Length<System.Text.Encoding.UTF8.GetByteCount(relayRoster)/2 && RelayPacketCodec.Decode(packedRoster)==relayRoster,"twenty-player snapshots compress and round-trip without changing scores or chat");
+bool RejectedRelay(Action action) {try{action();return false;}catch(Exception){return true;}}
+Check(RejectedRelay(()=>RelayPacketCodec.Encode(new string('A',RelayPacketCodec.MaxBytes+1))),"relay rejects oversized outgoing messages");
+Check(RejectedRelay(()=>RelayPacketCodec.Decode(new byte[RelayPacketCodec.MaxBytes+2])),"relay rejects oversized incoming messages");
+Check(RejectedRelay(()=>RelayPacketCodec.Decode(new byte[]{9,1,2})),"relay rejects unknown packet encodings");
+Check(RejectedRelay(()=>RelayPacketCodec.Decode(new byte[]{0,0xff})),"relay rejects invalid UTF8 before JSON parsing");
+using(var bomb=new MemoryStream())
+{
+    bomb.WriteByte(1);
+    using(var zip=new System.IO.Compression.DeflateStream(bomb,System.IO.Compression.CompressionLevel.Fastest,true))
+    {var excess=new byte[RelayPacketCodec.MaxBytes+1024];zip.Write(excess);}
+    Check(RejectedRelay(()=>RelayPacketCodec.Decode(bomb.ToArray())),"relay bounds decompressed messages to prevent expansion attacks");
+}
+Check(RejectedRelay(()=>RelayPacketCodec.Decode(Array.Empty<byte>())),"relay rejects an empty frame");
 Console.WriteLine($"ALL {checks} CHECKS PASSED");

@@ -154,4 +154,12 @@ PASS replacement message takes central spotlight without creating chat history
 PASS real TCP client-to-host transport
 PASS real TCP host-to-client transport
 PASS TCP disconnect notification
-ALL 156 CHECKS PASSED
+PASS relay packets preserve Korean, emoji and small commands
+PASS twenty-player snapshots compress and round-trip without changing scores or chat
+PASS relay rejects oversized outgoing messages
+PASS relay rejects oversized incoming messages
+PASS relay rejects unknown packet encodings
+PASS relay rejects invalid UTF8 before JSON parsing
+PASS relay bounds decompressed messages to prevent expansion attacks
+PASS relay rejects an empty frame
+ALL 164 CHECKS PASSED

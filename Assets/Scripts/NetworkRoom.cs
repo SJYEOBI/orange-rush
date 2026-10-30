@@ -10,8 +10,18 @@ using System.Threading.Tasks;
 
 namespace OrangeRush
 {
+    public interface IRoomConnection : IDisposable
+    {
+        bool IsHost { get; }
+        ConcurrentQueue<NetworkRoom.Incoming> inbox { get; }
+        ConcurrentQueue<string> errors { get; }
+        List<NetworkRoom.Peer> peers { get; }
+        void AcceptPending();
+        void Send(string line);
+        void Broadcast(string line);
+    }
     // Newline framed JSON over TCP. Worker threads only enqueue; Unity owns game state.
-    public sealed class NetworkRoom : IDisposable
+    public sealed class NetworkRoom : IRoomConnection
     {
         public sealed class Peer : IDisposable
         {
@@ -19,18 +29,22 @@ namespace OrangeRush
             public readonly StreamWriter writer;
             public int id = -1;
             public bool welcomed;
+            readonly Action<string> send;
+            readonly Action close;
+            int disposed;
             public Peer(TcpClient client)
             {
                 socket = client; socket.NoDelay = true; socket.ReceiveTimeout = 15000; socket.SendTimeout = 500;
                 writer = new StreamWriter(socket.GetStream(), new UTF8Encoding(false)) { AutoFlush = true };
             }
-            public void Send(string line) { lock (writer) writer.WriteLine(line); }
-            public void Dispose() { try { socket.Close(); } catch { } }
+            public Peer(Action<string> send, Action close) { this.send = send; this.close = close; }
+            public void Send(string line) { if(send != null) send(line); else lock (writer) writer.WriteLine(line); }
+            public void Dispose() { if(Interlocked.Exchange(ref disposed,1)!=0) return; try { if(close!=null) close(); else socket.Close(); } catch { } }
         }
         public struct Incoming { public Peer peer; public string line; public bool closed; }
-        public readonly ConcurrentQueue<Incoming> inbox = new ConcurrentQueue<Incoming>();
-        public readonly ConcurrentQueue<string> errors = new ConcurrentQueue<string>();
-        public readonly List<Peer> peers = new List<Peer>();
+        public ConcurrentQueue<Incoming> inbox { get; } = new ConcurrentQueue<Incoming>();
+        public ConcurrentQueue<string> errors { get; } = new ConcurrentQueue<string>();
+        public List<Peer> peers { get; } = new List<Peer>();
         readonly ConcurrentQueue<Peer> accepted = new ConcurrentQueue<Peer>();
         TcpListener listener;
         Peer server;

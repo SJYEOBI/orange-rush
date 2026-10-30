@@ -86,3 +86,12 @@ v0.4.2 / 2026-10-30 (Asia/Seoul)
 - Line height increased to 36px; the three lane bounds remain within y=476..620, below the HUD and above the typing guide. Width estimates include extra bold glyph spacing.
 - One existing fast rule/TCP suite passed: 156 checks. No additional full UI match was run for this visual update.
 - Windows x64 build succeeded in a separate v0.4.2 directory. Network protocol remains 8, compatible with v0.4.1.
+
+
+v0.5.0 / 2026-10-30 / room-code connections
+- One fast rules/transport suite passed: 164 checks, including bounded compressed Relay packets, Korean/emoji round-trip, twenty-player snapshots and rejection of oversized/invalid/expanded packets.
+- Three independent DEVELOPMENT_BUILD executables used unique anonymous authentication profiles and connected through actual Unity Relay over encrypted WebSockets. No LAN connection or localhost forwarding was used for this test.
+- All three observed a three-player roster, Hard mode, completed-word scoring, spectator chat, voice events, nomination, target preservation and the second Playing turn. All three reported success and exited.
+- Production builds omit the development smoke runner. Existing direct TCP remains an explicit advanced option.
+- This cloud-path integration used one physical computer; separate physical Internet connections remain a user-environment check.
+- Final production Windows build succeeded with DEVELOPMENT_BUILD disabled.
